@@ -353,18 +353,77 @@ def collect_all():
 		mark(P)
 
 def collect_league(seed_id):
-	league_members = []
-	summoner_dto = get_summoner(seed_id)
-	summoner_id = get_summoner_id(summoner)
-	league_dto = get_league(summoner_id)
-	push(account_queue, league_dto)
-	account_id = pop(account_queue)
-	matchlist_dto = get_matchlist(account_id)
-	get_all_matches(matchlist_dto)
+	QUEUE_ID = 999
+	SEASON_ID = 999
+	seed_summoner_ids = []
+	summoner_dto = get_summoner_by_account_id(seed_id)
+	seed_summoner_id = summoner_dto['id']
+	#api call for league
+	league_list_set_dto = get_league(seed_summoner_id)
+	for league_list_dto in league_list_set_dto:
+		if league_list_dto['queue'] != "RANKED_SOLO_5x5":
+			continue
+		tier = league_list_dto['tier']
+		for league_item_dto in league_list_dto['entries']:
+			summoner_id = league_item_dto['playerOrTeamId']
+			if (exists_summoner_id(summoner_id, season=SEASON_ID)):
+				continue
+			#api call for summoner info
+			account_id = get_summoner_by_summoner_id(summoner_id)
+			#api call for matchlist
+			matchlist_dto = get_matchlist(account_id, queue=[QUEUE_ID], season=SEASON_ID)
+			if matchlist_dto != None:
+				for match_reference_dto in matchlist_dto['matches']:
+					game_id = match_reference_dto['game_id']
+					#api call for match
+					match_dto = get_match(game_id)
+					record(match_dto)
+					seeds.append(get_seed(match_dto))
+			record(account_id, summoner_id, tier, season)
+	return seed_summoner_ids
+
+def exists_account_id(account_id):
+	query = ""
+	connection = sqlite3.connect('loldata.db')
+	cur = connection.cursor()
+	cur.execute(query)
 
 
-def get_summoner(account_id):
+def get_summoner_by_account_id(account_id):
+	request_body = ""
+	return = send_request(request_body)
+	
+def get_summoner_by_summoner_id(summoner_id):
+	request_body = ""
+	return send_request(request_body)
 
+def get_league(summoner_id):
+	request_body = ""
+	return send_request(request_body)
+	
+def send_request(request_body):
+	url = ""
+	key = ""
+	for i in range (5):
+		connection = http.client.HTTPSConnection(url, timeout=10)
+		response = None
+		try:
+			connection.request("GET", request_body, headers={'X-Riot-Token': key, })
+			response = connection.getresponse()
+			print(response.status, response.reason)
+			if response.status == 200:
+				b = response.read()
+				dataObject = json.loads(b)
+				connection.close()
+				return dataObject
+		except:
+			print("error")
+			if response != None:
+				print(response.status, response.reason)
+			connection.close()
+		time.sleep(1.2)
+		print("retrying...")
+	return None
 
 
 
