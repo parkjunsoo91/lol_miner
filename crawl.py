@@ -340,6 +340,7 @@ def collectPropagate():
 	#getallmatches in match db
 	return
 
+
 def collect_all():
 	challengers = []
 	for P in challengers:
@@ -382,11 +383,79 @@ def collect_league(seed_id):
 			record(account_id, summoner_id, tier, season)
 	return seed_summoner_ids
 
+def create_user_table():
+	connection = sqlite3.connect('loldata2.db')
+	cur = connection.cursor()
+	cur.execute('''CREATE TABLE users (
+		aid integer UNIQUE,
+		sid integer,
+		tier text,
+		season0 integer,
+		season1 integer,
+		season2 integer,
+		season3 integer,
+		season4 integer,
+		season5 integer,
+		season6 integer,
+		season7 integer,
+		season8 integer,
+		season9 integer)''')
+	self.connection.commit()
+
+def create_match_table():
+	connection = sqlite3.connect('loldata2.db')
+	cur = connection.cursor()
+	cur.execute('''CREATE TABLE matches (
+		gameId integer UNIQUE,
+		seasonId integer,
+		queueId integer,
+		gameVersion text,
+		platformId text,
+		gameDuration integer,
+		gameCreation integer,
+		accountId1 integer,
+		accountId2 integer,
+		accountId3 integer,
+		accountId4 integer,
+		accountId5 integer,
+		accountId6 integer,
+		accountId7 integer,
+		accountId8 integer,
+		accountId9 integer,
+		accountId10 integer,
+		pick1 integer,
+		pick2 integer,
+		pick3 integer,
+		pick4 integer,
+		pick5 integer,
+		pick6 integer,
+		pick7 integer,
+		pick8 integer,
+		pick9 integer,
+		pick10 integer,
+		ban1 integer,
+		ban2 integer,
+		ban3 integer,
+		ban4 integer,
+		ban5 integer,
+		ban6 integer,
+		ban7 integer,
+		ban8 integer,
+		ban9 integer,
+		ban10 integer,
+		winner integer,
+		wholejson text
+
+		''')
+	self.connection.commit()
+
+
 def exists_account_id(account_id):
 	query = ""
-	connection = sqlite3.connect('loldata.db')
+	connection = sqlite3.connect('loldata2.db')
 	cur = connection.cursor()
 	cur.execute(query)
+
 
 
 def get_summoner_by_account_id(account_id):
