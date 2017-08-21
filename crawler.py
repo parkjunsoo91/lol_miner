@@ -30,6 +30,17 @@ def create_user_table():
 		season9 integer)''')
 	connection.commit()
 
+def migrate_user_table():
+	con1 = sqlite3.connect('loldata2.db')
+	cur1 = con1.cursor()
+	cur1.execute('''SELECT * FROM users''')
+	rows = cur.fetchall()
+	for row in rows:
+		break
+	con2 = sqlite3.connect('loldata3.db')
+	cur2 = con2.cursor()
+
+
 def create_match_table():
 	connection = sqlite3.connect('loldata2.db')
 	cur = connection.cursor()
@@ -75,6 +86,7 @@ def create_match_table():
 		data text)
 		''')
 	connection.commit()
+
 
 
 def exists_account_id(account_id, season_id = 0):
@@ -123,6 +135,10 @@ def record_match(match_dto):
 	values.append(match_dto['gameCreation'])
 	winner = 100 if match_dto['teams'][0]['win']=='Win' else 200
 	values.append(winner)
+	if len(match_dto['participantIdentities']) != 10:
+		return
+	if len(match_dto['participants']) != 10:
+		return
 	for i in range (10):
 		participant_identity_dto = match_dto['participantIdentities'][i]
 		values.append(participant_identity_dto['player']['accountId'])
@@ -256,7 +272,7 @@ def collect_league(seed_id):
 			summoner_id = league_item_dto['playerOrTeamId']
 			if exists_summoner_id(summoner_id, season_id=SEASON_ID):
 				continue
-			print(SEED)
+			print(SEED, API_KEY)
 			#api call for summoner info
 			summoner_dto = get_summoner_by_summoner_id(summoner_id)
 			account_id = summoner_dto['accountId']
@@ -286,20 +302,21 @@ def main():
 counter = 0
 BRONZE = 0
 SILVER = 2833703
-GOLD = 0
-PLATINUM = 0
+GOLD = 4023441
+PLATINUM = 1647596
 DIAMOND = 2109280
 MASTER = 1229790
 CHALLENGER = 1222794
 SEASON_ID = 9
 QUEUE_ID = 420
 
-KEY_NA = "RGAPI-8996de32-03b0-4029-bdf1-6ef1468a9966"
-KEY_KR1 = "RGAPI-ed3577b4-fff3-4972-b66a-9d95c0d301f0"
-KEY_KR2 = "RGAPI-c0e0da6b-8272-4f0a-a47d-ec5fc5d7cd32"
-KEY_KR3 = "RGAPI-6fa1e75e-6810-4fe6-a7ff-f654e5e23613"
+NA1 = "RGAPI-530e6f5e-ddad-4563-aa43-21e55691db34" #silver & Plat
+NA2 = "RGAPI-544d9637-fba7-45b2-943b-0e77edbb549b" #gold
+KR1 = "RGAPI-7dc25574-9f21-413a-92af-65a097b5ac74" #challenger
+KR2 = "RGAPI-f9df717c-b7ef-40f5-942e-de64134eed34" #master
+KR3 = "RGAPI-3629efdf-f0c2-42ce-91c7-279ea8821284" #diamond
 
-API_KEY = KEY_KR3
-SEED = DIAMOND
+API_KEY = NA1
+SEED = PLATINUM
 
 main()
