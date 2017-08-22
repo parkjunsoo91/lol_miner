@@ -290,7 +290,34 @@ def collect_league(seed_id):
 			record_user(account_id, summoner_id, tier, SEASON_ID)
 	return seed_summoner_ids
 
+def collect_all_season(account_id):
+	seasons = [9,8,7,6,5,4,3,2,1,0]
+	for season_id in seasons:
+		matchlist_dto = get_matchlist(account_id, season_id = season_id)
+		if matchlist_dto != None:
+			for match_reference_dto in matchlist_dto['matches']:
+				game_id = match_reference_dto['gameId']
+				if exists_match(game_id):
+					continue
+				#api call for match
+				match_dto = get_match(game_id)
+				record_match(match_dto)
+		record_user(account_id, None, None, season_id)
+
+def collect_all_players_history(tier):
+	connection = sqlite3.connect('loldata2.db')
+	cur = connection.cursor()
+	cur.execute("SELECT * FROM users WHERE tier = ?", (tier,))
+	rows = cur.fetchall()
+	for row in rows:
+		account_id = row[0]
+		collect_all_season(account_id)
+
+
+
 def main():
+	collect_all_players_history(TIER)
+	return
 	#create_user_table()
 	#create_match_table()
 	seeds = [SEED]
@@ -307,16 +334,17 @@ PLATINUM = 1647596
 DIAMOND = 2109280
 MASTER = 1229790
 CHALLENGER = 1222794
-SEASON_ID = 9
+SEASON_ID = 8
 QUEUE_ID = 420
 
-NA1 = "RGAPI-530e6f5e-ddad-4563-aa43-21e55691db34" #silver & Plat
-NA2 = "RGAPI-544d9637-fba7-45b2-943b-0e77edbb549b" #gold
-KR1 = "RGAPI-7dc25574-9f21-413a-92af-65a097b5ac74" #challenger
-KR2 = "RGAPI-f9df717c-b7ef-40f5-942e-de64134eed34" #master
-KR3 = "RGAPI-3629efdf-f0c2-42ce-91c7-279ea8821284" #diamond
+NA1 = "RGAPI-055ca296-9061-41ef-8c2c-d53d429e4435" #silver & Plat
+NA2 = "RGAPI-aa81f330-372f-4cf4-8445-8a9405b9d608" #gold
+KR1 = "RGAPI-b866a599-181a-47a7-96a4-2084130455b5" #challenger
+KR2 = "RGAPI-1d5da636-77a1-4225-9d24-4b06b770be3a" #master
+KR3 = "RGAPI-3647ee0e-a563-4356-973c-3cf6623e0ed2" #diamond
 
-API_KEY = NA1
-SEED = PLATINUM
+API_KEY = NA2
+TIER = "GOLD"
+SEED = CHALLENGER
 
 main()
