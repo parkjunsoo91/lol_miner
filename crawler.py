@@ -149,7 +149,7 @@ def exists_account_id(account_id, season_id = 0):
 	if season_id == 0:
 		cur.execute("SELECT * FROM users WHERE aid = ?", (account_id,))
 	else:
-		cur.execute("SELECT * FROM users WHERE aid=:aid and season{}=:1".format(season_id), {"aid":account_id})
+		cur.execute("SELECT * FROM users WHERE aid=:aid and season{}=1".format(season_id), {"aid":account_id})
 	row = cur.fetchone()
 	if row == None:
 		return False
@@ -342,14 +342,14 @@ CHALLENGER = 1222794
 SEASON_ID = 8
 QUEUE_ID = 420
 
-NA1 = "RGAPI-055ca296-9061-41ef-8c2c-d53d429e4435" #silver & Plat
-NA2 = "RGAPI-aa81f330-372f-4cf4-8445-8a9405b9d608" #gold
-KR1 = "RGAPI-b866a599-181a-47a7-96a4-2084130455b5" #challenger
-KR2 = "RGAPI-1d5da636-77a1-4225-9d24-4b06b770be3a" #master
-KR3 = "RGAPI-3647ee0e-a563-4356-973c-3cf6623e0ed2" #diamond
+NA1 = "RGAPI-fa743fc5-4642-496c-b637-de57f5ae16eb" #silver & Plat
+NA2 = "RGAPI-b0d67b16-bc62-4f0f-87e9-ec190e3f07d8" #gold
+KR1 = "RGAPI-554bd6f1-c546-48d7-b868-c18204be2944" #challenger
+KR2 = "RGAPI-a1350f17-d018-44ee-9fd0-5e789fb166f6" #master
+KR3 = "RGAPI-c1fdcaa4-4190-4899-91d5-84c0d5d57b79" #diamond
 
-API_KEY = NA1
-TIER = "SILVER"
+API_KEY = KR3
+TIER = "DIAMOND"
 SEED = CHALLENGER
 
 main()
