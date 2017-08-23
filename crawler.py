@@ -9,6 +9,60 @@ import datetime
 
 
 
+def get_summoner_by_account_id(account_id):
+	request_body = "/lol/summoner/v3/summoners/by-account/{}".format(account_id)
+	return send_request(request_body)
+	
+def get_summoner_by_summoner_id(summoner_id):
+	request_body = "/lol/summoner/v3/summoners/{}".format(summoner_id)
+	return send_request(request_body)
+
+def get_league(summoner_id):
+	request_body = "/lol/league/v3/leagues/by-summoner/{}".format(summoner_id)
+	return send_request(request_body)
+
+def get_matchlist(account_id, queue_id=0, season_id = 0):
+	request_body = "/lol/match/v3/matchlists/by-account/{}".format(account_id)
+	if season_id != 0:
+		request_body = request_body + "?season=" + str(season_id)
+	return send_request(request_body)
+
+def get_match(game_id):
+	request_body = "/lol/match/v3/matches/{}".format(game_id)
+	return send_request(request_body)
+	
+def send_request(request_body):
+	time.sleep(1.2)
+	print(request_body)
+	global counter
+	counter += 1
+
+	url = "kr.api.riotgames.com"
+	key = API_KEY
+	for i in range (5):
+		connection = http.client.HTTPSConnection(url, timeout=10)
+		response = None
+		try:
+			connection.request("GET", request_body, headers={'X-Riot-Token': key, })
+			response = connection.getresponse()
+			print(datetime.datetime.now(), response.status, response.reason, counter)
+			if response.status == 200:
+				b = response.read()
+				dataObject = json.loads(b)
+				connection.close()
+				return dataObject
+		except:
+			print("error")
+			if response != None:
+				print(response.status, response.reason)
+			connection.close()
+		time.sleep(1.2)
+		print("retrying...")
+	return response.status
+
+
+
+
 
 
 def create_user_table():
@@ -190,61 +244,6 @@ def record_user(account_id, summoner_id, tier, season_id):
 
 
 
-def get_summoner_by_account_id(account_id):
-	print("getting summoner of aid", account_id)
-	request_body = "/lol/summoner/v3/summoners/by-account/{}".format(account_id)
-	return send_request(request_body)
-	
-def get_summoner_by_summoner_id(summoner_id):
-	print("getting summoner of sid", summoner_id)
-	request_body = "/lol/summoner/v3/summoners/{}".format(summoner_id)
-	return send_request(request_body)
-
-def get_league(summoner_id):
-	print("getting league of sid", summoner_id)
-	request_body = "/lol/league/v3/leagues/by-summoner/{}".format(summoner_id)
-	return send_request(request_body)
-
-def get_matchlist(account_id, queue_id=0, season_id = 0):
-	print("getting matchlist for aid", account_id)
-	request_body = "/lol/match/v3/matchlists/by-account/{}".format(account_id)
-	if season_id != 0:
-		request_body = request_body + "?season=" + str(season_id)
-	return send_request(request_body)
-
-def get_match(game_id):
-	global counter
-	counter += 1
-	print("getting match of gameId", game_id, "(", counter, ")")
-	request_body = "/lol/match/v3/matches/{}".format(game_id)
-	return send_request(request_body)
-
-	
-def send_request(request_body):
-	time.sleep(1.2)
-	url = "kr.api.riotgames.com"
-	key = API_KEY
-	for i in range (5):
-		connection = http.client.HTTPSConnection(url, timeout=10)
-		response = None
-		try:
-			connection.request("GET", request_body, headers={'X-Riot-Token': key, })
-			response = connection.getresponse()
-			print(datetime.datetime.now(), response.status, response.reason)
-			if response.status == 200:
-				b = response.read()
-				dataObject = json.loads(b)
-				connection.close()
-				return dataObject
-		except:
-			print("error")
-			if response != None:
-				print(response.status, response.reason)
-			connection.close()
-		time.sleep(1.2)
-		print("retrying...")
-	return None
-
 
 
 
@@ -293,6 +292,10 @@ def collect_league(seed_id):
 def collect_all_season(account_id):
 	seasons = [9,8,7,6,5,4,3,2,1,0]
 	for season_id in seasons:
+		#check if the season is already covered.
+		if exists_account_id(account_id, season_id = season_id):
+			continue
+		#api call for matchlist
 		matchlist_dto = get_matchlist(account_id, season_id = season_id)
 		if matchlist_dto != None:
 			for match_reference_dto in matchlist_dto['matches']:
@@ -301,6 +304,8 @@ def collect_all_season(account_id):
 					continue
 				#api call for match
 				match_dto = get_match(game_id)
+				if match_dto == 404:
+					continue
 				record_match(match_dto)
 		record_user(account_id, None, None, season_id)
 
@@ -343,8 +348,8 @@ KR1 = "RGAPI-b866a599-181a-47a7-96a4-2084130455b5" #challenger
 KR2 = "RGAPI-1d5da636-77a1-4225-9d24-4b06b770be3a" #master
 KR3 = "RGAPI-3647ee0e-a563-4356-973c-3cf6623e0ed2" #diamond
 
-API_KEY = NA2
-TIER = "GOLD"
+API_KEY = NA1
+TIER = "SILVER"
 SEED = CHALLENGER
 
 main()

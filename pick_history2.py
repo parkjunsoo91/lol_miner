@@ -10,7 +10,6 @@ from sklearn import linear_model
 def champ_coverage():
 	return
 
-
 def pick_history():
 	connection = sqlite3.connect('loldata2.db')
 	cur = connection.cursor()
