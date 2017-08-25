@@ -5,64 +5,7 @@ from urllib.parse import quote
 import json
 import sqlite3
 import datetime
-
-
-
-
-def get_summoner_by_account_id(account_id):
-	request_body = "/lol/summoner/v3/summoners/by-account/{}".format(account_id)
-	return send_request(request_body)
-	
-def get_summoner_by_summoner_id(summoner_id):
-	request_body = "/lol/summoner/v3/summoners/{}".format(summoner_id)
-	return send_request(request_body)
-
-def get_league(summoner_id):
-	request_body = "/lol/league/v3/leagues/by-summoner/{}".format(summoner_id)
-	return send_request(request_body)
-
-def get_matchlist(account_id, queue_id=0, season_id = 0):
-	request_body = "/lol/match/v3/matchlists/by-account/{}".format(account_id)
-	if season_id != 0:
-		request_body = request_body + "?season=" + str(season_id)
-	return send_request(request_body)
-
-def get_match(game_id):
-	request_body = "/lol/match/v3/matches/{}".format(game_id)
-	return send_request(request_body)
-	
-def send_request(request_body):
-	time.sleep(1.2)
-	print(request_body)
-	global counter
-	counter += 1
-
-	url = "kr.api.riotgames.com"
-	key = API_KEY
-	for i in range (5):
-		connection = http.client.HTTPSConnection(url, timeout=10)
-		response = None
-		try:
-			connection.request("GET", request_body, headers={'X-Riot-Token': key, })
-			response = connection.getresponse()
-			print(datetime.datetime.now(), response.status, response.reason, counter)
-			if response.status == 200:
-				b = response.read()
-				dataObject = json.loads(b)
-				connection.close()
-				return dataObject
-		except:
-			print("error")
-			if response != None:
-				print(response.status, response.reason)
-			connection.close()
-		time.sleep(1.2)
-		print("retrying...")
-	return response.status
-
-
-
-
+from riot_api import *
 
 
 def create_user_table():
@@ -84,16 +27,30 @@ def create_user_table():
 		season9 integer)''')
 	connection.commit()
 
-def migrate_user_table():
-	con1 = sqlite3.connect('loldata2.db')
-	cur1 = con1.cursor()
-	cur1.execute('''SELECT * FROM users''')
+def add_column_matchlist():
+	connection = sqlite3.connect('loldata2.db')
+	cur = connection.cursor()
+	cur.execute("ALTER TABLE users ADD COLUMN matchlist 'text' ")
+	connection.commit()
+
+def fill_column_matchlist(TIER):
+	connection = sqlite3.connect('loldata2.db')
+	cur = connection.cursor()
+	cur.execute("SELECT * FROM users where tier = ? and matchlist=?", (TIER, None,))
 	rows = cur.fetchall()
 	for row in rows:
-		break
-	con2 = sqlite3.connect('loldata3.db')
-	cur2 = con2.cursor()
+		aid = row[0]
+		matchlist_dto = get_matchlist(aid)
+		matchlist = [match_reference_dto['gameId'] for match_reference_dto in matchlist_dto['matches']]
+		data = json.dumps(matchlist)
+		cur2 = connection.cursor()
+		cur2.execute("UPDATE users SET matchlist=? where aid=?", (data, account_id,))
+		connection.commit()
 
+def db_fix():
+	#only do once
+	#add_column_matchlist()
+	fill_column_matchlist(TIER)
 
 def create_match_table():
 	connection = sqlite3.connect('loldata2.db')
@@ -142,39 +99,47 @@ def create_match_table():
 	connection.commit()
 
 
+#seasonid 0~9
+def exists_account_id(account_id, season_id = None):
+	return exists_user(account_id, None, season_id)
 
-def exists_account_id(account_id, season_id = 0):
+def exists_summoner_id(summoner_id, season_id = None):
+	return exists_user(None, summoner_id, season_id)
+
+def exists_user(account_id = None, summoner_id = None, season_id = None):
+	assert (season_id == None) or (0 <= season_id and season_id <= 9)
 	connection = sqlite3.connect('loldata2.db')
 	cur = connection.cursor()
-	if season_id == 0:
-		cur.execute("SELECT * FROM users WHERE aid = ?", (account_id,))
+	if account_id == None:
+		assert summoner_id != None
+		if season_id == None:
+			cur.execute("SELECT count(*) FROM users WHERE aid = ?", (summoner_id,))
+		else:
+			cur.execute("SELECT count(*) FROM users WHERE aid = ? and season{} = 1".format(season_id), (summoner_id,))
 	else:
-		cur.execute("SELECT * FROM users WHERE aid=:aid and season{}=1".format(season_id), {"aid":account_id})
-	row = cur.fetchone()
-	if row == None:
+		if season_id == None:
+			cur.execute("SELECT count(*) FROM users WHERE aid = ?", (account_id,))
+		else:
+			cur.execute("SELECT count(*) FROM users WHERE aid = ? and season{} = 1".format(season_id), (account_id,))
+	count = cur.fetchone()[0]
+	if count == 0:
 		return False
-	return True
-
-def exists_summoner_id(summoner_id, season_id = 0):
-	connection = sqlite3.connect('loldata2.db')
-	cur = connection.cursor()
-	if season_id == 0:
-		cur.execute("SELECT * FROM users WHERE sid = ?", (summoner_id,))
+	elif count == 1:
+		return True
 	else:
-		cur.execute("SELECT * FROM users WHERE sid=:sid and season{}=1".format(season_id), {"sid":summoner_id})
-	row = cur.fetchone()
-	if row == None:
-		return False
-	return True
+		assert False
 
 def exists_match(game_id):
 	connection = sqlite3.connect('loldata2.db')
 	cur = connection.cursor()
-	cur.execute("SELECT * FROM matches WHERE gameId = ?", (game_id,))
-	row = cur.fetchone()
-	if row == None:
+	cur.execute("SELECT count(*) FROM matches WHERE gameId = ?", (game_id,))
+	count = cur.fetchone()[0]
+	if count == 0:
 		return False
-	return True
+	elif count == 1:
+		return True
+	else:
+		assert False
 
 def record_match(match_dto):
 	if exists_match(match_dto["gameId"]):
@@ -242,13 +207,6 @@ def record_user(account_id, summoner_id, tier, season_id):
 
 
 
-
-
-
-
-
-
-
 def get_seed(match_dto):
 	seeds = []
 	for participant_identity_dto in match_dto['participantIdentities']:
@@ -260,7 +218,7 @@ def collect_league(seed_id):
 	seed_summoner_id = seed_id
 	seed_summoner_ids = []
 	#api call for league
-	league_list_set_dto = get_league(seed_summoner_id)
+	league_list_set_dto = api.get_league(seed_summoner_id)
 	if league_list_set_dto == None:
 		return []
 	for league_list_dto in league_list_set_dto:
@@ -271,23 +229,25 @@ def collect_league(seed_id):
 			summoner_id = league_item_dto['playerOrTeamId']
 			if exists_summoner_id(summoner_id, season_id=SEASON_ID):
 				continue
-			print(SEED, API_KEY)
 			#api call for summoner info
-			summoner_dto = get_summoner_by_summoner_id(summoner_id)
+			summoner_dto = api.get_summoner_by_summoner_id(summoner_id)
 			account_id = summoner_dto['accountId']
 			#api call for matchlist
-			matchlist_dto = get_matchlist(account_id, queue_id=[QUEUE_ID], season_id=SEASON_ID)
+			matchlist_dto = api.get_matchlist(account_id, season_id=SEASON_ID)
 			if matchlist_dto != None:
 				for match_reference_dto in matchlist_dto['matches']:
 					game_id = match_reference_dto['gameId']
 					if exists_match(game_id):
 						continue
 					#api call for match
-					match_dto = get_match(game_id)
+					match_dto = api.get_match(game_id)
 					record_match(match_dto)
 					seed_summoner_ids += get_seed(match_dto)
 			record_user(account_id, summoner_id, tier, SEASON_ID)
 	return seed_summoner_ids
+
+def record_user_matchlist(account_id):
+	return
 
 def collect_all_season(account_id):
 	seasons = [9,8,7,6,5,4,3,2,1,0]
@@ -296,14 +256,14 @@ def collect_all_season(account_id):
 		if exists_account_id(account_id, season_id = season_id):
 			continue
 		#api call for matchlist
-		matchlist_dto = get_matchlist(account_id, season_id = season_id)
+		matchlist_dto = api.get_matchlist(account_id, season_id = season_id)
 		if matchlist_dto != None:
 			for match_reference_dto in matchlist_dto['matches']:
 				game_id = match_reference_dto['gameId']
 				if exists_match(game_id):
 					continue
 				#api call for match
-				match_dto = get_match(game_id)
+				match_dto = api.get_match(game_id)
 				if match_dto == 404:
 					continue
 				record_match(match_dto)
@@ -319,18 +279,22 @@ def collect_all_players_history(tier):
 		collect_all_season(account_id)
 
 
-
 def main():
-	collect_all_players_history(TIER)
-	return
+	global api
+	api = RiotAPICaller(API_KEY)
+	#collect_all_players_history(TIER)
+	#return
 	#create_user_table()
 	#create_match_table()
+	collect_league(SEED)
+	return
 	seeds = [SEED]
 	while True:
 		seed = seeds.pop(0)
 		new_seeds = collect_league(seed)
 		seeds = seeds + new_seeds
 
+api = None
 counter = 0
 BRONZE = 0
 SILVER = 2833703
@@ -342,14 +306,14 @@ CHALLENGER = 1222794
 SEASON_ID = 8
 QUEUE_ID = 420
 
-NA1 = "RGAPI-fa743fc5-4642-496c-b637-de57f5ae16eb" #silver & Plat
-NA2 = "RGAPI-b0d67b16-bc62-4f0f-87e9-ec190e3f07d8" #gold
-KR1 = "RGAPI-554bd6f1-c546-48d7-b868-c18204be2944" #challenger
-KR2 = "RGAPI-a1350f17-d018-44ee-9fd0-5e789fb166f6" #master
-KR3 = "RGAPI-c1fdcaa4-4190-4899-91d5-84c0d5d57b79" #diamond
+NA1 = "RGAPI-695c1a28-1d74-4124-9d4d-94a0dd121959" #silver & Bronze
+NA2 = "RGAPI-3308a6f6-e618-4d85-b76b-955241b83999" #gold
+KR1 = "RGAPI-6e82a0fe-af53-4221-8a20-9058ac557093" #challenger
+KR2 = "RGAPI-eab1046b-4a33-4f30-81fa-4743e0eb451f" #master & PLAT
+KR3 = "RGAPI-c2f60718-41df-411d-9ca9-28680b1e0a28" #diamond
 
-API_KEY = KR3
-TIER = "DIAMOND"
+API_KEY = NA1
+TIER = "SILVER"
 SEED = CHALLENGER
 
 main()

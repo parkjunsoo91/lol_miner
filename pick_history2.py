@@ -7,7 +7,9 @@ import numpy as np
 from sklearn import linear_model
 
 
-def champ_coverage():
+#champ coverage: sum of all
+def champ_coverage(pick_history):
+	
 	return
 
 def pick_history():
