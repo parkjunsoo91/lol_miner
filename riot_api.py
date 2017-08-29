@@ -8,6 +8,7 @@ class RiotAPICaller:
 	def __init__(self, api_key):
 		self.KEY = api_key
 		self.URL = "kr.api.riotgames.com"
+		self.counter = 0
 
 	def get_summoner_by_account_id(self, account_id):
 		request_body = "/lol/summoner/v3/summoners/by-account/{}".format(account_id)
@@ -41,7 +42,8 @@ class RiotAPICaller:
 			try:
 				connection.request("GET", request_body, headers={'X-Riot-Token': self.KEY, })
 				response = connection.getresponse()
-				print(datetime.datetime.now(), response.status, response.reason)
+				self.counter += 1
+				print(datetime.datetime.now(), self.counter, response.status, response.reason)
 				if response.status == 200:
 					b = response.read()
 					dataObject = json.loads(b)

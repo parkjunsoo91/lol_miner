@@ -1,10 +1,8 @@
 import sys
 import time
-import http.client
 from urllib.parse import quote
 import json
 import sqlite3
-import datetime
 from riot_api import *
 
 
@@ -27,30 +25,52 @@ def create_user_table():
 		season9 integer)''')
 	connection.commit()
 
-def add_column_matchlist():
+def create_matchlist_table():
 	connection = sqlite3.connect('loldata2.db')
 	cur = connection.cursor()
-	cur.execute("ALTER TABLE users ADD COLUMN matchlist 'text' ")
-	connection.commit()
+	if True:
+		cur.execute("DROP TABLE matchlist")
+		cur.execute('''CREATE TABLE matchlist (
+			aid integer UNIQUE,
+			matchlist text)''')
+		connection.commit()
 
-def fill_column_matchlist(TIER):
-	connection = sqlite3.connect('loldata2.db')
-	cur = connection.cursor()
-	cur.execute("SELECT * FROM users where tier = ? and matchlist=?", (TIER, None,))
+	cur.execute("SELECT aid from users")
 	rows = cur.fetchall()
 	for row in rows:
 		aid = row[0]
-		matchlist_dto = get_matchlist(aid)
-		matchlist = [match_reference_dto['gameId'] for match_reference_dto in matchlist_dto['matches']]
-		data = json.dumps(matchlist)
-		cur2 = connection.cursor()
-		cur2.execute("UPDATE users SET matchlist=? where aid=?", (data, account_id,))
+		cur.execute("SELECT count(*) from matchlist where aid = ?", (aid,))
+		if cur.fetchone()[0] >= 1:
+			continue
+		matchlist = []
+		matchlist_dto = api.get_matchlist(aid)
+		cur.execute("INSERT INTO matchlist values (?, ?)", (aid, json.dumps(matchlist_dto),))
 		connection.commit()
 
-def db_fix():
-	#only do once
-	#add_column_matchlist()
-	fill_column_matchlist(TIER)
+def add_winloss_info():
+	connection = sqlite3.connect('loldata2.db')
+	cur = connection.cursor()
+	cur.execute("SELECT * FROM matchlist")
+	rows = cur.fetchall()
+	accounts = []
+	for row in rows:
+		aid = row[0]
+		matchlist_dto = json.loads(row[1])
+		for match_reference_dto in matchlist_dto['matches']:
+			if 'win' in match_reference_dto:
+				continue
+			game_id = match_reference_dto['gameId']
+			cur.execute("SELECT accountId1,accountId2,accountId3,accountId4,accountId5,accountId6,accountId7,accountId8,accountId9,accountId10,winner from matches where gameId = ?",(game_id,))
+			matchrow = cur.fetchone()
+			if matchrow == None:
+				continue
+			if aid in matchrow[:5] and matchrow[10] == 100 or aid in matchrow[5:] and matchrow[10] == 200:
+				win = True
+			else:
+				win = False
+			match_reference_dto['win'] = win
+		cur.execute("UPDATE matchlist SET matchlist=? where aid=?",(json.dumps(matchlist_dto), aid,))
+		connection.commit()
 
 def create_match_table():
 	connection = sqlite3.connect('loldata2.db')
@@ -278,10 +298,21 @@ def collect_all_players_history(tier):
 		account_id = row[0]
 		collect_all_season(account_id)
 
+def check_entry():
+	connection = sqlite3.connect('loldata2.db')
+	cur = connection.cursor()
+	cur.execute('select * from matchlist')
+	row = cur.fetchone()
+	print (row)
+
 
 def main():
 	global api
 	api = RiotAPICaller(API_KEY)
+	#create_matchlist_table()
+	add_winloss_info()
+	return
+
 	#collect_all_players_history(TIER)
 	#return
 	#create_user_table()
@@ -306,7 +337,7 @@ CHALLENGER = 1222794
 SEASON_ID = 8
 QUEUE_ID = 420
 
-NA1 = "RGAPI-695c1a28-1d74-4124-9d4d-94a0dd121959" #silver & Bronze
+NA1 = "RGAPI-51faa4f3-151a-4209-b1a4-ddaf1c4c05b7" #silver & Bronze
 NA2 = "RGAPI-3308a6f6-e618-4d85-b76b-955241b83999" #gold
 KR1 = "RGAPI-6e82a0fe-af53-4221-8a20-9058ac557093" #challenger
 KR2 = "RGAPI-eab1046b-4a33-4f30-81fa-4743e0eb451f" #master & PLAT

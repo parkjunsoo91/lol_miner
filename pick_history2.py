@@ -12,6 +12,19 @@ def champ_coverage(pick_history):
 	
 	return
 
+#returns user dictionary {userid, }
+def fetch_all_user_history():
+	connection = sqlite3.connect('loldata2.db')
+	cur = connection.cursor()
+	cur.execute("SELECT matchlist.aid, users.tier, matchlist.matchlist FROM matchlist INNER JOIN users ON matchlist.aid = users.aid")
+	rows = cur.fetchall()
+	histories = [{'aid':row[0], 'tier':row[1], 'matchlist':json.loads(row[2])} for row in rows]
+	return histories
+	
+
+histories = fetch_all_user_history()
+print(histories[0])
+
 def pick_history():
 	connection = sqlite3.connect('loldata2.db')
 	cur = connection.cursor()
@@ -296,4 +309,4 @@ def show_plot(title, iv_, dv_):
 	plt.show()
 
 
-pick_history()
+#pick_history()
