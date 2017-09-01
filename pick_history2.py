@@ -20,10 +20,20 @@ def fetch_all_user_history():
 	rows = cur.fetchall()
 	histories = [{'aid':row[0], 'tier':row[1], 'matchlist':json.loads(row[2])} for row in rows]
 	return histories
-	
 
-histories = fetch_all_user_history()
-print(histories[0])
+def user_history_statistics():
+	histories = fetch_all_user_history()
+	for user_history in histories:
+		matchlist = user_history['matchlist']
+		print("len(matches) = {}, totalgames = {}, startindex = {}, endindex = {}".format(len(matchlist['matches']), matchlist['totalGames'], matchlist['startIndex'], matchlist['endIndex']))
+
+
+#input: {aid, tier, matchlist}
+def visualize_history(user_history):
+	ordered_matchlist = sorted(user_history['matchlist'])
+	ordered_champions = sorted(champ_frequency, key=lambda x: champ_frequency[x], reverse=True)
+
+user_history_statistics()
 
 def pick_history():
 	connection = sqlite3.connect('loldata2.db')

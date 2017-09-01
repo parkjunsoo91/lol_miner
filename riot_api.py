@@ -27,7 +27,21 @@ class RiotAPICaller:
 		request_body = "/lol/match/v3/matchlists/by-account/{}".format(account_id)
 		if season_id != None:
 			request_body = "{}?season={}".format(request_body, season_id)
-		return self.send_request(request_body)
+		matchlist_dto = self.send_request(request_body)
+		matches = matchlist_dto['matches']
+		total_games = matchlist_dto['totalGames']
+		end_index = matchlist_dto['endIndex']
+		print ("len(matches) = {}, total_games = {}".format(len(matches), total_games))
+		while end_index < total_games:
+			next_request_body = "{}?beginIndex={}".format(request_body, end_index)
+			matchlist_dto = self.send_request(next_request_body)
+			matches += matchlist_dto['matches']
+			total_games = matchlist_dto['totalGames']
+			end_index = matchlist_dto['endIndex']
+			print ("len(matches) = {}, total_games = {}".format(len(matches), total_games))
+		assert len(matches) == total_games
+		return {'totalGames': total_games, 'matches': matches}
+
 
 	def get_match(self, game_id):
 		request_body = "/lol/match/v3/matches/{}".format(game_id)

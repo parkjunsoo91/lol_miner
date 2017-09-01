@@ -84,38 +84,13 @@ def create_match_table():
 		gameDuration integer,
 		gameCreation integer,
 		winner integer,
-		accountId1 integer,
-		accountId2 integer,
-		accountId3 integer,
-		accountId4 integer,
-		accountId5 integer,
-		accountId6 integer,
-		accountId7 integer,
-		accountId8 integer,
-		accountId9 integer,
-		accountId10 integer,
-		pick1 integer,
-		pick2 integer,
-		pick3 integer,
-		pick4 integer,
-		pick5 integer,
-		pick6 integer,
-		pick7 integer,
-		pick8 integer,
-		pick9 integer,
-		pick10 integer,
-		ban1 integer,
-		ban2 integer,
-		ban3 integer,
-		ban4 integer,
-		ban5 integer,
-		ban6 integer,
-		ban7 integer,
-		ban8 integer,
-		ban9 integer,
-		ban10 integer,
-		data text)
-		''')
+		accountId1 integer, accountId2 integer, accountId3 integer, accountId4 integer, accountId5 integer,
+		accountId6 integer, accountId7 integer, accountId8 integer, accountId9 integer,	accountId10 integer,
+		pick1 integer, pick2 integer, pick3 integer, pick4 integer, pick5 integer,
+		pick6 integer, pick7 integer, pick8 integer, pick9 integer, pick10 integer,
+		ban1 integer, ban2 integer, ban3 integer, ban4 integer, ban5 integer,
+		ban6 integer, ban7 integer, ban8 integer, ban9 integer, ban10 integer,
+		data text)''')
 	connection.commit()
 
 
@@ -298,18 +273,175 @@ def collect_all_players_history(tier):
 		account_id = row[0]
 		collect_all_season(account_id)
 
-def check_entry():
+'''
+initialize tables
+given a seed, collect match histories for ppl in same league
+collect match info for everyone in user table
+
+collect people matches by league (fill both users and matches)
+collect matchlist for each person
+
+
+apikey = 1 2 (NA) 3 4 5 (KR)
+
+0. collect user list.
+1. collect matchlists.
+2. collect match info.
+
+3. make matchlists with win-loss and kda statistics for matchlists
+
+5. update matchlists.
+6. update match info
+
+'''
+
+def collect_user_list():
+	pass
+def collect_matchlists():
+	pass
+def collect_matchinfo():
+	tier = input("tier?:")
+	key = input("key number?:")
+	global API_KEY
+	global TIER
+	TIER = tier
+	if key == '1':
+		API_KEY = NA1
+	if key == '2':
+		API_KEY = NA2
+	if key == '3':
+		API_KEY = KR1
+	if key == '4':
+		API_KEY = KR2
+	if key == '5':
+		API_KEY = KR3
+	global api
+	api = RiotAPICaller(API_KEY)
+
 	connection = sqlite3.connect('loldata2.db')
 	cur = connection.cursor()
-	cur.execute('select * from matchlist')
-	row = cur.fetchone()
-	print (row)
+	#cur.execute('SELECT * FROM matchlist')
+	cur.execute("SELECT matchlist.aid, users.tier, matchlist.matchlist FROM matchlist INNER JOIN users ON matchlist.aid = users.aid")
+	rows = cur.fetchall()
+	for row in rows:
+		tier = row[1]
+		if tier == TIER:
+			matchlist_dto = json.loads(row[2])
+			for match_reference_dto in matchlist_dto['matches']:
+				queue = match_reference_dto['queue']
+				season = match_reference_dto['season']
+				game_id = match_reference_dto['gameId']
+				#recording only ranked games for now
+				if queue == 4 or queue == 42 or queue == 410 or queue == 420 or queue == 440:
+					cur.execute('SELECT count(*) FROM matches WHERE gameId=?',(game_id,))
+					if cur.fetchone()[0] == 0:
+						match_dto = api.get_match(game_id)
+						record_match(match_dto)
 
+def add_winloss_kda():
+	pass
+
+def check_missing_matches():
+	connection = sqlite3.connect('loldata2.db')
+	cur = connection.cursor()
+	cur.execute('SELECT * FROM matchlist')
+	rows = cur.fetchall()
+	queues = {}
+	for row in rows:
+		matchlist_dto = json.loads(row[1])
+		for match_reference_dto in matchlist_dto['matches']:
+			queue = match_reference_dto['queue']
+			season = match_reference_dto['season']
+			game_id = match_reference_dto['gameId']
+			cur.execute('SELECT count(*) FROM matches WHERE gameId=?',(game_id,))
+			if cur.fetchone()[0] == 0:
+				if queue in queues:
+					if season in queues[queue]:
+						queues[queue][season] += 1
+					else:
+						queues[queue][season] = 1
+				else:
+					queues[queue] = {season:1}
+	print(queues)
+
+def check_table_matches():
+	cur = sqlite3.connect('loldata2.db').cursor()
+	cur.execute('SELECT count(*) FROM matches')
+	print(cur.fetchone()[0])
+
+def check_matchlist_queues():
+	cur = sqlite3.connect('loldata2.db').cursor()
+	cur.execute('SELECT * FROM matchlist')
+	rows = cur.fetchall()
+	queues = {}
+	for row in rows:
+		matchlist_dto = json.loads(row[1])
+		for match_reference_dto in matchlist_dto['matches']:
+			queue = match_reference_dto['queue']
+			season = match_reference_dto['season']
+			game_id = match_reference_dto['gameId']
+			if queue in queues:
+				if season in queues[queue]:
+					queues[queue][season] += 1
+				else:
+					queues[queue][season] = 1
+			else:
+				queues[queue] = {season:1}
+	for q in sorted(queues):
+		print("queue {}: ".format(q), end='')
+		for s in queues[q]:
+			print("(s{}:{})".format(s, queues[q][s]), end='')
+		print()
+
+def check_match_queues():
+	cur = sqlite3.connect('loldata2.db').cursor()
+	cur.execute('SELECT queueId, seasonId FROM matches')
+	rows = cur.fetchall()# this takes up the most time...
+	queues = {}
+	for row in rows:
+		queue = row[0]
+		season = row[1]
+		if queue in queues:
+			if season in queues[queue]:
+				queues[queue][season] += 1
+			else:
+				queues[queue][season] = 1
+		else:
+			queues[queue] = {season:1}
+	for q in sorted(queues):
+		print("queue {}: ".format(q), end='')
+		for s in queues[q]:
+			print("(s{}:{})".format(s, queues[q][s]), end='')
+		print()
 
 def main():
 	global api
 	api = RiotAPICaller(API_KEY)
-	#create_matchlist_table()
+	print("1 - ")
+	print("2 - collect matches")
+	print("3 - check missing matches")
+	print("4 - check_db")
+	print("5 - check_matchlist queues")
+	print("6 - check match queues")
+	print("9 - exit")
+	num = input("enter command: ")
+	if num == '1':
+		pass
+	elif num == '2':
+		collect_matchinfo()
+	elif num == '3':
+		check_missing_matches()
+	elif num == '4':
+		check_table_matches()
+	elif num == '5':
+		check_matchlist_queues()
+	elif num == '6':
+		check_match_queues()
+	elif num == '9':
+		return
+	return
+	
+	create_matchlist_table()
 	add_winloss_info()
 	return
 
@@ -337,11 +469,11 @@ CHALLENGER = 1222794
 SEASON_ID = 8
 QUEUE_ID = 420
 
-NA1 = "RGAPI-51faa4f3-151a-4209-b1a4-ddaf1c4c05b7" #silver & Bronze
-NA2 = "RGAPI-3308a6f6-e618-4d85-b76b-955241b83999" #gold
-KR1 = "RGAPI-6e82a0fe-af53-4221-8a20-9058ac557093" #challenger
-KR2 = "RGAPI-eab1046b-4a33-4f30-81fa-4743e0eb451f" #master & PLAT
-KR3 = "RGAPI-c2f60718-41df-411d-9ca9-28680b1e0a28" #diamond
+NA1 = "RGAPI-7ca9f51e-803a-4c5b-8c53-1120a5ea9e70" #silver & Bronze
+NA2 = "RGAPI-586349cb-d805-4041-a05a-aef877b10d70" #gold
+KR1 = "RGAPI-a28fd76e-abbd-49bd-9c28-fe4868eabd84" #challenger
+KR2 = "RGAPI-690af573-1560-4cb7-911c-3b92c6f1bf8e" #master & PLAT
+KR3 = "RGAPI-c0c07d16-365e-4ed0-9697-fb23c712d58e" #diamond
 
 API_KEY = NA1
 TIER = "SILVER"
