@@ -42,15 +42,23 @@ class RiotAPICaller:
 		assert len(matches) == total_games
 		return {'totalGames': total_games, 'matches': matches}
 
-
 	def get_match(self, game_id):
 		request_body = "/lol/match/v3/matches/{}".format(game_id)
 		return self.send_request(request_body)
+
+	def get_champions(self):
+		request_body = "/lol/static-data/v3/champions?locale=en_US&tags=all&dataById=true"
+		return self.send_request(request_body)
+
+	def get_items(self):
+		request_body = "/lol/static-data/v3/items?locale=en_US&tags=all"
+		return self.send_request(request_body)
+
 		
 	def send_request(self, request_body):
 		time.sleep(1.2)
 		print(request_body)
-		for i in range (5):
+		for i in range (3):
 			connection = http.client.HTTPSConnection(self.URL, timeout=10)
 			response = None
 			try:

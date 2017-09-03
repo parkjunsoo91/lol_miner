@@ -41,6 +41,8 @@ def LoadChampFeatures():
 		fieldnames.append('Support')
 		fieldnames.append('Tank')
 
+		#lane info... TBA
+
 		#4 info, 20 stats
 		champ = champ_data['1']
 		for k in champ['info']:

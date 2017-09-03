@@ -21,12 +21,6 @@ def fetch_all_user_history():
 	histories = [{'aid':row[0], 'tier':row[1], 'matchlist':json.loads(row[2])} for row in rows]
 	return histories
 
-def user_history_statistics():
-	histories = fetch_all_user_history()
-	for user_history in histories:
-		matchlist = user_history['matchlist']
-		print("len(matches) = {}, totalgames = {}, startindex = {}, endindex = {}".format(len(matchlist['matches']), matchlist['totalGames'], matchlist['startIndex'], matchlist['endIndex']))
-
 
 #input: {aid, tier, matchlist}
 def visualize_history(user_history):

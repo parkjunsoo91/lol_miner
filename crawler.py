@@ -336,6 +336,8 @@ def collect_matchinfo():
 					cur.execute('SELECT count(*) FROM matches WHERE gameId=?',(game_id,))
 					if cur.fetchone()[0] == 0:
 						match_dto = api.get_match(game_id)
+						if match_dto == None or match_dto == 404:
+							continue
 						record_match(match_dto)
 
 def add_winloss_kda():
@@ -414,6 +416,20 @@ def check_match_queues():
 			print("(s{}:{})".format(s, queues[q][s]), end='')
 		print()
 
+def update_static_data():
+	champion_list_dto = api.get_champions()
+	if champion_list_dto == None or type(champion_list_dto) is int:
+		print("champion list not updated")
+	else:
+		with open('champions.json', 'w') as f:
+			json.dump(champion_list_dto, f)
+	item_list_dto = api.get_items()
+	if item_list_dto == None or type(item_list_dto) is int:
+		print("item list not updated")
+	else:
+		with open('items.json', 'w') as f:
+			json.dump(item_list_dto, f)
+
 def main():
 	global api
 	api = RiotAPICaller(API_KEY)
@@ -423,6 +439,7 @@ def main():
 	print("4 - check_db")
 	print("5 - check_matchlist queues")
 	print("6 - check match queues")
+	print("7 - update static data")
 	print("9 - exit")
 	num = input("enter command: ")
 	if num == '1':
@@ -437,6 +454,8 @@ def main():
 		check_matchlist_queues()
 	elif num == '6':
 		check_match_queues()
+	elif num == '7':
+		update_static_data()
 	elif num == '9':
 		return
 	return
@@ -469,11 +488,11 @@ CHALLENGER = 1222794
 SEASON_ID = 8
 QUEUE_ID = 420
 
-NA1 = "RGAPI-7ca9f51e-803a-4c5b-8c53-1120a5ea9e70" #silver & Bronze
-NA2 = "RGAPI-586349cb-d805-4041-a05a-aef877b10d70" #gold
-KR1 = "RGAPI-a28fd76e-abbd-49bd-9c28-fe4868eabd84" #challenger
-KR2 = "RGAPI-690af573-1560-4cb7-911c-3b92c6f1bf8e" #master & PLAT
-KR3 = "RGAPI-c0c07d16-365e-4ed0-9697-fb23c712d58e" #diamond
+NA1 = "RGAPI-abeddfb9-99f0-4965-b1b6-1e88caa30939" #silver & Bronze
+NA2 = "RGAPI-8befd0b4-52e6-4371-ab46-51f31865bdc2" #gold
+KR1 = "RGAPI-7cd6cdd2-63c1-4373-864e-5c6fbba89ce7" #challenger
+KR2 = "RGAPI-82ef9a00-e7a0-4ca8-a092-5e1b0174c04d" #master & PLAT
+KR3 = "RGAPI-e109fc4e-61b6-4aa9-9b95-789d6d56114c" #diamond
 
 API_KEY = NA1
 TIER = "SILVER"
