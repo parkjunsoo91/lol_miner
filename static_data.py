@@ -1,4 +1,3 @@
-
 import csv
 import json
 import numpy as np
@@ -42,6 +41,7 @@ def LoadChampFeatures():
 		fieldnames.append('Tank')
 
 		#lane info... TBA
+
 
 		#4 info, 20 stats
 		champ = champ_data['1']

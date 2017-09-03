@@ -44,7 +44,8 @@ def create_matchlist_table():
 			continue
 		matchlist = []
 		matchlist_dto = api.get_matchlist(aid)
-		cur.execute("INSERT INTO matchlist values (?, ?)", (aid, json.dumps(matchlist_dto),))
+		cur.execute("INSERT INTO matchlist values (?, ?)", 
+					(aid, json.dumps(matchlist_dto),))
 		connection.commit()
 
 def add_winloss_info():
@@ -60,16 +61,20 @@ def add_winloss_info():
 			if 'win' in match_reference_dto:
 				continue
 			game_id = match_reference_dto['gameId']
-			cur.execute("SELECT accountId1,accountId2,accountId3,accountId4,accountId5,accountId6,accountId7,accountId8,accountId9,accountId10,winner from matches where gameId = ?",(game_id,))
+			cur.execute("""SELECT accountId1,accountId2,accountId3,accountId4,accountId5,
+						accountId6,accountId7,accountId8,accountId9,accountId10,winner 
+						from matches where gameId = ?""",(game_id,))
 			matchrow = cur.fetchone()
 			if matchrow == None:
 				continue
-			if aid in matchrow[:5] and matchrow[10] == 100 or aid in matchrow[5:] and matchrow[10] == 200:
+			if (aid in matchrow[:5] and matchrow[10] == 100 or
+				aid in matchrow[5:] and matchrow[10] == 200):
 				win = True
 			else:
 				win = False
 			match_reference_dto['win'] = win
-		cur.execute("UPDATE matchlist SET matchlist=? where aid=?",(json.dumps(matchlist_dto), aid,))
+		cur.execute("UPDATE matchlist SET matchlist=? where aid=?",
+					(json.dumps(matchlist_dto), aid,))
 		connection.commit()
 
 def create_match_table():
@@ -321,7 +326,8 @@ def collect_matchinfo():
 	connection = sqlite3.connect('loldata2.db')
 	cur = connection.cursor()
 	#cur.execute('SELECT * FROM matchlist')
-	cur.execute("SELECT matchlist.aid, users.tier, matchlist.matchlist FROM matchlist INNER JOIN users ON matchlist.aid = users.aid")
+	cur.execute("""SELECT matchlist.aid, users.tier, matchlist.matchlist 
+		FROM matchlist INNER JOIN users ON matchlist.aid = users.aid""")
 	rows = cur.fetchall()
 	for row in rows:
 		tier = row[1]
@@ -332,7 +338,8 @@ def collect_matchinfo():
 				season = match_reference_dto['season']
 				game_id = match_reference_dto['gameId']
 				#recording only ranked games for now
-				if queue == 4 or queue == 42 or queue == 410 or queue == 420 or queue == 440:
+				if (queue == 4 or queue == 42 or queue == 410 or
+					queue == 420 or queue == 440):
 					cur.execute('SELECT count(*) FROM matches WHERE gameId=?',(game_id,))
 					if cur.fetchone()[0] == 0:
 						match_dto = api.get_match(game_id)
