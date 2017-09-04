@@ -1,5 +1,6 @@
 import sys
 import time
+from datetime import date
 from urllib.parse import quote
 import json
 import sqlite3
@@ -337,6 +338,7 @@ def collect_matchinfo():
 				queue = match_reference_dto['queue']
 				season = match_reference_dto['season']
 				game_id = match_reference_dto['gameId']
+				timestamp = match_reference_dto['timestamp']//1000
 				#recording only ranked games for now
 				if (queue == 4 or queue == 42 or queue == 410 or
 					queue == 420 or queue == 440):
@@ -344,6 +346,7 @@ def collect_matchinfo():
 					if cur.fetchone()[0] == 0:
 						match_dto = api.get_match(game_id)
 						if match_dto == None or match_dto == 404:
+							print("404 for season{}, queue{}, {}, {}".format(season, queue, str(date.fromtimestamp(timestamp)), timestamp))
 							continue
 						record_match(match_dto)
 
@@ -360,6 +363,9 @@ def check_missing_matches():
 		matchlist_dto = json.loads(row[1])
 		for match_reference_dto in matchlist_dto['matches']:
 			queue = match_reference_dto['queue']
+			if (queue != 4 and queue != 42 and 
+				queue != 420 and queue!= 440):
+				continue
 			season = match_reference_dto['season']
 			game_id = match_reference_dto['gameId']
 			cur.execute('SELECT count(*) FROM matches WHERE gameId=?',(game_id,))
@@ -402,6 +408,20 @@ def check_matchlist_queues():
 			print("(s{}:{})".format(s, queues[q][s]), end='')
 		print()
 
+def check_timestamp():
+	cur = sqlite3.connect('loldata2.db').cursor()
+	cur.execute('SELECT * FROM matchlist')
+	rows = cur.fetchall()
+	count = 0
+	for row in rows:
+		matchlist_dto = json.loads(row[1])
+		for match_reference_dto in matchlist_dto['matches']:
+			timestamp = match_reference_dto['timestamp'] // 1000
+			if timestamp < 1412916917:
+				print(date.fromtimestamp(timestamp))
+				count += 1
+	print(count)
+
 def check_match_queues():
 	cur = sqlite3.connect('loldata2.db').cursor()
 	cur.execute('SELECT queueId, seasonId FROM matches')
@@ -422,6 +442,8 @@ def check_match_queues():
 		for s in queues[q]:
 			print("(s{}:{})".format(s, queues[q][s]), end='')
 		print()
+
+
 
 def update_static_data():
 	champion_list_dto = api.get_champions()
@@ -446,7 +468,8 @@ def main():
 	print("4 - check_db")
 	print("5 - check_matchlist queues")
 	print("6 - check match queues")
-	print("7 - update static data")
+	print("7 - check timestamp")
+	print("8 - update static data")
 	print("9 - exit")
 	num = input("enter command: ")
 	if num == '1':
@@ -462,6 +485,8 @@ def main():
 	elif num == '6':
 		check_match_queues()
 	elif num == '7':
+		check_timestamp()
+	elif num == '8':
 		update_static_data()
 	elif num == '9':
 		return
@@ -495,11 +520,11 @@ CHALLENGER = 1222794
 SEASON_ID = 8
 QUEUE_ID = 420
 
-NA1 = "RGAPI-abeddfb9-99f0-4965-b1b6-1e88caa30939" #silver & Bronze
-NA2 = "RGAPI-8befd0b4-52e6-4371-ab46-51f31865bdc2" #gold
-KR1 = "RGAPI-7cd6cdd2-63c1-4373-864e-5c6fbba89ce7" #challenger
-KR2 = "RGAPI-82ef9a00-e7a0-4ca8-a092-5e1b0174c04d" #master & PLAT
-KR3 = "RGAPI-e109fc4e-61b6-4aa9-9b95-789d6d56114c" #diamond
+NA1 = "RGAPI-e25c265e-685b-4fbc-8350-6245d0a04237" #silver & Bronze
+NA2 = "RGAPI-a313e30a-99f7-4917-8a0f-9e953ca2611b" #gold
+KR1 = "RGAPI-3b09835e-2116-41b2-aa7e-2ecdf4f9033f" #challenger
+KR2 = "RGAPI-e7174d16-1448-41d0-ab19-659f5a561bfe" #master & PLAT
+KR3 = "RGAPI-7bd52325-6d2f-4d77-b420-bd28099188cc" #diamond
 
 API_KEY = NA1
 TIER = "SILVER"
