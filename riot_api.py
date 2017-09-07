@@ -71,7 +71,10 @@ class RiotAPICaller:
 					dataObject = json.loads(b)
 					connection.close()
 					return dataObject
+				elif response.status == 404:
+					return 404
 			except http.client.HTTPException as e:
+				#does this part ever run?
 				print(e)
 				if response != None:
 					print(response.status, response.reason)
