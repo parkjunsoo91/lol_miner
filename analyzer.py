@@ -187,12 +187,64 @@ def entropy_tier():
 			lane_histogram[lane] += 1
 			#win = is_winner(match_reference_dto['gameId'], row['aid'])
 
+def consecutive_victory_plot():
+	histories = fetch_all_user_history()
+	data = []
+	for row in histories:
+		tier = row['tier']
+		previous_affinity = 0
+		same_picks = 0
+		win_picks = 0
+		loss_picks = 0 
+		matches = row['matchlist']['matches']
+		divisor = len(matches) - 1
+		for i in range(len(matches)-1):
+			result_pick = matches[i]['champion']
+			prev_pick = matches[i+1]['champion']
+			if not 'win' in matches[i+1]:
+				continue
+			prev_win = matches[i+1]['win']
+			if prev_pick == result_pick:
+				same_picks += 1
+				if prev_win:
+					win_picks += 1
+				else:
+					loss_picks += 1
+		userinfo = {}
+		userinfo['same_pick'] = same_picks / divisor
+		userinfo['win_pick'] = win_picks / divisor
+		userinfo['loss_pick'] = loss_picks / divisor
+		userinfo['tier'] = tier
+		data.append(userinfo)
+
+	#now draw plot
+	plt.title = "same_picks"
+	plt.xlabel('probablity of re-picking previous pick')
+	plt.ylabel('previous pick won/lost')
+	x = [user['same_pick'] for user in data]
+	y1 = [user['win_pick'] for user in data]
+	y2 = [user['loss_pick'] for user in data]
+	plt.plot(x, y1, 'r.')
+	plt.plot(x, y2, 'b.')
+	draw_regression(x, y1)
+	draw_regression(x, y2)
+
+	plt.show()
+
+def draw_regression(iv_, dv_):
+	iv = np.array(iv_)[np.newaxis].T
+	dv = np.array(dv_)[np.newaxis].T
+	regr = linear_model.LinearRegression()
+	regr.fit(iv, dv)
+	plt.plot(iv, regr.predict(iv))
+
+
 def main():
 	print("1 - visualize pick sequence")
 	print("2 - entropy over time")
 	print("3 - entropy over games")
 	print("4 - entropy per tier")
-	print("5 - ")
+	print("5 - consecutive_victory_plot")
 	print("6 - ")
 	print("9 - exit")
 	num = input("enter command: ")
@@ -205,7 +257,7 @@ def main():
 	elif num == '4':
 		entropy_tier()
 	elif num == '5':
-		pass
+		consecutive_victory_plot()
 	elif num == '6':
 		pass
 	elif num == '9':
