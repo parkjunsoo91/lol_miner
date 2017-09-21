@@ -54,7 +54,6 @@ def add_winloss_info():
 	cur = connection.cursor()
 	cur.execute("SELECT * FROM matchlist")
 	rows = cur.fetchall()
-	accounts = []
 	for row in rows:
 		aid = row[0]
 		matchlist_dto = json.loads(row[1])
@@ -73,6 +72,53 @@ def add_winloss_info():
 				win = True
 			else:
 				win = False
+			match_reference_dto['win'] = win
+		cur.execute("UPDATE matchlist SET matchlist=? where aid=?",
+					(json.dumps(matchlist_dto), aid,))
+		connection.commit()
+
+def add_kda_info():
+	connection = sqlite3.connect('loldata2.db')
+	cur = connection.cursor()
+	cur.execute("SELECT * FROM matchlist")
+	rows = cur.fetchall()
+	count = 0
+	for row in rows:
+		count += 1
+		if count % 100 == 0:
+			print(count)
+		aid = row[0]
+		matchlist_dto = json.loads(row[1])
+		for match_reference_dto in matchlist_dto['matches']:
+			if 'win' in match_reference_dto and 'kills' in match_reference_dto:
+				continue
+			game_id = match_reference_dto['gameId']
+			cur.execute("""SELECT data 
+						from matches where gameId = ?""",(game_id,))
+			matchrow = cur.fetchone()
+			if matchrow == None:
+				continue
+			#now fetch data
+			match_dto = json.loads(matchrow[0])
+			participant_id = 0
+			for participant_identity_dto in match_dto['participantIdentities']:
+				player_dto = participant_identity_dto['player']
+				if player_dto['accountId'] == aid:
+					participant_id = participant_identity_dto['participantId']
+					break
+			assert participant_id != 0
+
+			for participant_dto in match_dto['participants']:
+				if participant_dto['participantId'] == participant_id:
+					participant_stats_dto = participant_dto['stats']
+					win = participant_stats_dto['win']
+					kills = participant_stats_dto['kills']
+					deaths = participant_stats_dto['deaths']
+					assists = participant_stats_dto['assists']
+					break
+			match_reference_dto['kills'] = kills
+			match_reference_dto['deaths'] = deaths
+			match_reference_dto['assists'] = assists			
 			match_reference_dto['win'] = win
 		cur.execute("UPDATE matchlist SET matchlist=? where aid=?",
 					(json.dumps(matchlist_dto), aid,))
@@ -470,7 +516,8 @@ def main():
 	print("6 - check match queues")
 	print("7 - check timestamp")
 	print("8 - update static data")
-	print("9 - exit")
+	print("9 - add winloss info")
+	print("10 - add kda info")
 	num = input("enter command: ")
 	if num == '1':
 		pass
@@ -489,7 +536,9 @@ def main():
 	elif num == '8':
 		update_static_data()
 	elif num == '9':
-		return
+		add_winloss_info()
+	elif num == '10':
+		add_kda_info()
 	return
 	
 	create_matchlist_table()

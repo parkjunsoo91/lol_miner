@@ -27,7 +27,6 @@ def visualize_history(user_history):
 	ordered_matchlist = sorted(user_history['matchlist'])
 	ordered_champions = sorted(champ_frequency, key=lambda x: champ_frequency[x], reverse=True)
 
-user_history_statistics()
 
 def pick_history():
 	connection = sqlite3.connect('loldata2.db')
@@ -179,7 +178,6 @@ def entropy_winrate(accounts, champ_data):
 
 		tiers[account['tier']].append(entry)
 
-	tiers
 
 	shape_dict = {}
 	color_dict = {}
@@ -313,4 +311,4 @@ def show_plot(title, iv_, dv_):
 	plt.show()
 
 
-#pick_history()
+pick_history()
