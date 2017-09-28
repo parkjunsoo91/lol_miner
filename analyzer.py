@@ -231,13 +231,85 @@ def consecutive_victory_plot():
 
 	plt.show()
 
-def draw_regression(iv_, dv_):
+def draw_regression(iv_, dv_, color = 'b-'):
 	iv = np.array(iv_)[np.newaxis].T
 	dv = np.array(dv_)[np.newaxis].T
 	regr = linear_model.LinearRegression()
 	regr.fit(iv, dv)
-	plt.plot(iv, regr.predict(iv))
+	plt.plot(iv, regr.predict(iv), color)
 
+
+def after_win_analysis(has_lost):
+	histories = fetch_all_user_history()
+	cluster_map, cluster_labels, champion_map = load_cluster_map()	
+	data = []
+	for row in histories:
+		tier = row['tier']
+		matches = row['matchlist']['matches']
+		wins = 0
+		repicks = 0
+		relanes = 0
+		pick_histogram = {}
+		lane_histogram = {'TOP':0,'MID':0,'BOTTOM':0,'JUNGLE':0,}
+		role_histogram = [0] * 5
+		for champ_id in cluster_map:
+			pick_histogram[champ_id] = 0
+		for i in range(len(matches)-1):
+			queue = matches[i]['queue']
+			if queue != 4 and queue != 420 :
+				continue
+			pick_histogram[matches[i]['champion']] += 1
+			lane_histogram[matches[i]['lane']] += 1
+			if not 'win' in matches[i+1]:
+				continue
+			if matches[i+1]['win'] == has_lost:
+				continue
+			wins += 1
+			prev_pick = matches[i+1]['champion']
+			result_pick = matches[i]['champion']
+			if prev_pick == result_pick:
+				repicks += 1
+			prev_lane = matches[i+1]['lane']
+			result_lane = matches[i]['lane']
+			if prev_lane == result_lane:
+				relanes += 1
+		if wins == 0:
+			continue
+		userinfo = {}
+		userinfo['win_repick'] = repicks / wins
+		userinfo['win_relane'] = relanes / wins
+		userinfo['tier'] = tier
+		userinfo['champ_entropy'] = entropy([e[1] for e in pick_histogram.items()])
+		userinfo['lane_entropy'] = entropy([e[1] for e in lane_histogram.items()])
+		userinfo['role_entropy'] = 0
+		data.append(userinfo)
+	
+	tiers = ['BRONZE', 'SILVER', 'GOLD', 'PLATINUM', 'DIAMOND', 'MASTER', 'CHALLENGER']
+	color = ['r.', 'g.', 'y.', 'b.', 'c.', 'm.', 'k.']
+	#now draw plot
+	plt.title = "same_picks"
+	plt.xlabel('player champion entropy')
+	plt.ylabel('probablity of re-picking winning pick')
+	if has_lost:
+		plt.ylabel('probablity of re-picking losing pick')
+	for i in range(len(tiers)):
+		x1 = [user['champ_entropy'] for user in data if user['tier'] == tiers[i]]
+		y1 = [user['win_repick'] for user in data if user['tier'] == tiers[i]]
+		plt.plot(x1, y1, color[i])
+		draw_regression(x1, y1, color[i][0]+'-')
+	plt.show()
+
+
+	plt.xlabel('player LANE entropy')
+	plt.ylabel('probability of re_picking winning LANE')
+	if has_lost:
+		plt.ylabel('probablity of re-picking losing LANE')
+	for i in range(len(tiers)):
+		x2 = [user['lane_entropy'] for user in data if user['tier'] == tiers[i]]
+		y2 = [user['win_relane'] for user in data if user['tier'] == tiers[i]]
+		plt.plot(x2, y2, color[i])
+		draw_regression(x2, y2, color[i][0]+'-')
+	plt.show()
 
 def main():
 	print("1 - visualize pick sequence")
@@ -245,7 +317,8 @@ def main():
 	print("3 - entropy over games")
 	print("4 - entropy per tier")
 	print("5 - consecutive_victory_plot")
-	print("6 - ")
+	print("6 - after win analysis")
+	print("7 - after loss analysis")
 	print("9 - exit")
 	num = input("enter command: ")
 	if num == '1':
@@ -259,7 +332,9 @@ def main():
 	elif num == '5':
 		consecutive_victory_plot()
 	elif num == '6':
-		pass
+		after_win_analysis(False)
+	elif num == '7':
+		after_win_analysis(True)
 	elif num == '9':
 		return
 	return
