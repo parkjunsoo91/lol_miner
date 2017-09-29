@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from sklearn import linear_model
 import math
+import random
 
 def fetch_all_user_history():
 	connection = sqlite3.connect('loldata2.db')
@@ -77,7 +78,7 @@ def is_winner(match_id, user_id):
 		return 0
 
 def entropy_overgame():
-	PLOT_RANGE = 1000
+	PLOT_RANGE = 200
 	mode = input("color: 1 by cluster, 2 by lane")
 	recent = int(input("winrate recency: "))
 
@@ -132,8 +133,10 @@ def entropy_overgame():
 				winrate20, kda])
 
 			index += 1
-			if index < PLOT_RANGE:
-				print(match_reference_dto)
+
+		entropy_sequence = [m[5] for m in matchlist_data]
+		segments = change_point_analysis(entropy_sequence)
+
 		plt.title(row['tier'])
 		if mode == '1':
 			for label in cluster_labels:
@@ -153,8 +156,8 @@ def entropy_overgame():
 				entropy_sequence = [match_data[5] for match_data in matchlist_data if match_data[4] == lane and match_data[0] in range(PLOT_RANGE)]
 				kda_sequence = [match_data[7] for match_data in matchlist_data if match_data[4] == lane and match_data[0] in range(PLOT_RANGE)]
 				averaged_kda_sequence = [np.mean(kda_sequence[max(i-recent,0):i]) for i in range(len(kda_sequence))]
-				#plt.plot(index_sequence, entropy_sequence, colors[colorid]+markers[2])
-				plt.plot(index_sequence, averaged_kda_sequence, colors[colorid]+markers[2])
+				plt.plot(index_sequence, entropy_sequence, colors[colorid]+markers[2])
+				#plt.plot(index_sequence, averaged_kda_sequence, colors[colorid]+markers[2])
 				colorid += 1
 			#for match_data in matchlist_data:
 			#	if match_data[0] in range(PLOT_RANGE):
@@ -166,7 +169,64 @@ def entropy_overgame():
 		plt.plot(index_sequence, winrate_sequence, 'k-')
 		#plt.plot(index_sequence, kda_sequence)
 
+		segment_sequence = [segment[0] for segment in segments if segment[0] in range(PLOT_RANGE)]
+		bar_height = [entropy_sequence[i] for i in segment_sequence]
+		plt.plot(segment_sequence, bar_height, 'mo')
+
 		plt.show()
+
+def change_point_tester():
+	a = [1,2,3,4,5,6,7,8,9,8,7,6,5,4,3,2,1,2,3,4,5,6,7]
+	print(get_cusum(a))
+	segments = change_point_analysis(a)
+	print(segments)
+	for s in segments:
+		for i in range(s[0], s[1]):
+			print(a[i], end="")
+		print()
+
+def change_point_analysis(data):
+	if len(data) < 2:
+		return [[0,len(data)]]
+	exists_change = bootstrap_analysis(data)
+	if exists_change == True:
+		index = change_estimator(data)
+		subsegments1 = change_point_analysis(data[0:index])
+		subsegments2 = change_point_analysis(data[index:len(data)])
+		for segment in subsegments2:
+			for i in range(2):
+				segment[i] += index
+		return subsegments1 + subsegments2
+	else:
+		return [[0,len(data)]]
+
+def bootstrap_analysis(data, num_samples = 100, confidence_required = 0.90):
+	cusum_original = get_cusum(data)
+	diff_original = max(cusum_original) - min(cusum_original)
+	confidence_count = 0
+	for i in range(num_samples):
+		bootstrap_sample = random.sample(data, len(data))
+		cusum_sample = get_cusum(bootstrap_sample)
+		diff_sample = max(cusum_sample) - min(cusum_sample)
+		if diff_sample < diff_original:
+			confidence_count += 1
+	confidence_level = confidence_count/num_samples
+	print (confidence_level)
+	return confidence_level > confidence_required
+
+def get_cusum(data):
+	average = np.mean(data)
+	cusum = [0]
+	for i in range(0, len(data)):
+		cusum.append(cusum[-1] + (data[i] - average))
+	return cusum
+
+def change_estimator(data):
+	cusum = get_cusum(data)
+	abs_cusum = [abs(e) for e in cusum]
+	return abs_cusum.index(max(abs_cusum)) - 1
+
+
 
 def entropy_tier():
 	cluster_map, cluster_labels, champion_map = load_cluster_map()
@@ -311,6 +371,17 @@ def after_win_analysis(has_lost):
 		draw_regression(x2, y2, color[i][0]+'-')
 	plt.show()
 
+def mean_consecutive_picks():
+	histories = fetch_all_user_history()
+	cluster_map, cluster_labels, champion_map = load_cluster_map()	
+	data = []
+	for row in histories:
+		tier = row['tier']
+		matches = row['matchlist']['matches']
+		pick_sequence = [match_reference_dto['champion'] for match_reference_dto in matches]
+
+
+
 def main():
 	print("1 - visualize pick sequence")
 	print("2 - entropy over time")
@@ -335,6 +406,8 @@ def main():
 		after_win_analysis(False)
 	elif num == '7':
 		after_win_analysis(True)
+	elif num == '8':
+		change_point_tester()
 	elif num == '9':
 		return
 	return
