@@ -77,6 +77,33 @@ def is_winner(match_id, user_id):
 	else:
 		return 0
 
+def get_ranked_sequence(history):
+	RANKED_QUEUES = [4,420]
+	matches = history['matchlist']['matches'].reverse()
+	ranked_sequence = [m for m in matches if m['queue'] in RANKED_QUEUES]
+	return ranked_sequence
+
+def generate_entropy_sequence(sequence, categories):
+	entropy_seq = []
+	histogram = {}
+	for category in categories:
+		histogram[category] = 0
+	for i in range(sequence):
+		histogram[sequence[i]] += 1
+		list
+
+
+
+def user_entropy(history):
+	#histories = [{'aid':row[0], 'tier':row[1], 'matchlist':json.loads(row[2])} for row in rows]
+	match_seq = get_ranked_sequence(history)
+	champ_seq = [match_reference_dto['champion'] for match_reference_dto in match_seq]
+	role_seq = None
+	champ_entropy_seq = generate_entropy_sequence(champ_seq)
+	role_entropy_seq = generate_entropy_sequence(role_seq)
+
+	#TODO: let's work here.
+
 def entropy_overgame():
 	PLOT_RANGE = 200
 	mode = input("color: 1 by cluster, 2 by lane")
@@ -85,6 +112,8 @@ def entropy_overgame():
 
 	cluster_map, cluster_labels, champion_map = load_cluster_map()
 	histories = fetch_all_user_history()
+
+
 
 	colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k']
 	markers = ['o', '+', '.', ',', '-']
@@ -135,7 +164,10 @@ def entropy_overgame():
 			index += 1
 
 		entropy_sequence = [m[5] for m in matchlist_data]
-		segments = change_point_analysis(entropy_sequence)
+		entropy_change_sequence = []
+		for i in range(len(entropy_sequence) - 1):
+			entropy_change_sequence.append(entropy_sequence[i+1] - entropy_sequence[i])
+		segments = change_point_analysis(entropy_change_sequence)
 
 		plt.title(row['tier'])
 		if mode == '1':
@@ -169,8 +201,8 @@ def entropy_overgame():
 		plt.plot(index_sequence, winrate_sequence, 'k-')
 		#plt.plot(index_sequence, kda_sequence)
 
-		segment_sequence = [segment[0] for segment in segments if segment[0] in range(PLOT_RANGE)]
-		bar_height = [entropy_sequence[i] for i in segment_sequence]
+		segment_sequence = [segment[0] for segment in segments if segment[0] in range(PLOT_RANGE - 1)]
+		bar_height = [1 for i in segment_sequence]
 		plt.plot(segment_sequence, bar_height, 'mo')
 
 		plt.show()
