@@ -8,48 +8,54 @@ from sklearn import linear_model
 import math
 import random
 
-def fetch_all_user_history():
-	connection = sqlite3.connect('loldata2.db')
-	cur = connection.cursor()
-	cur.execute("SELECT matchlist.aid, users.tier, matchlist.matchlist FROM matchlist INNER JOIN users ON matchlist.aid = users.aid")
-	rows = cur.fetchall()
-	histories = [{'aid':row[0], 'tier':row[1], 'matchlist':json.loads(row[2])} for row in rows]
-	return histories
 
-def load_cluster_map():
-	cluster_map = {}
-	champion_map = {}
-	cluster_labels = {}
-	with open('clusters.csv') as f:
-		reader = csv.reader(f)
-		for row in reader:
-			cluster_map[int(row[0])] = int(row[2])
-			champion_map[int(row[0])] = row[1]
-			if row[1] == "Ashe":
-				cluster_labels[int(row[2])] = "Marksman"
-			elif row[1] == "Pantheon":
-				cluster_labels[int(row[2])] = "Assassin"
-			elif row[1] == "Rammus":
-				cluster_labels[int(row[2])] = "Tank"
-			elif row[1] == "Ryze":
-				cluster_labels[int(row[2])] = "Mage"
-			elif row[1] == "Soraka":
-				cluster_labels[int(row[2])] = "Support"
-	return cluster_map, cluster_labels, champion_map
+def main():
+	print("1 - visualize pick sequence")
+	print("2 - entropy over time")
+	print("3 - entropy over games")
+	print("4 - entropy per tier")
+	print("5 - consecutive_victory_plot")
+	print("6 - after win analysis")
+	print("7 - after loss analysis")
+	print("9 - exit")
+	num = input("enter command: ")
+	if num == '1':
+		pick_visualize()
+	elif num == '2':
+		entropy_overtime()
+	elif num == '3':
+		entropy_overgame()
+	elif num == '4':
+		entropy_tier()
+	elif num == '5':
+		consecutive_victory_plot()
+	elif num == '6':
+		after_win_analysis(False)
+	elif num == '7':
+		after_win_analysis(True)
+	elif num == '8':
+		change_point_tester()
+	elif num == '9':
+		return
+	return
 
-#timestamp vs pickrole
+
 def pick_visualize():
+	"""Show, for every single player, their roles over all timestamps
+	"""
 	cluster_map, cluster_labels, champion_map = load_cluster_map()
 	histories = fetch_all_user_history()
 	for row in histories:
 		matches = row['matchlist']['matches']
-		timestamp_sequence = [match_reference_dto['timestamp']/1000 for match_reference_dto in matches]
-		role_sequence = [cluster_map[match_reference_dto['champion']] for match_reference_dto in matches]
+		timestamp_sequence = [match_ref_dto['timestamp']/1000 for match_ref_dto in matches]
+		role_sequence = [cluster_map[match_ref_dto['champion']] for match_ref_dto in matches]
 		plt.title(row['tier'])
 		plt.plot(timestamp_sequence, role_sequence, 'r.')
 		plt.show()
 
 def entropy_overtime():
+	"""Show, for every single player, their champion entropy over timestamp.
+	"""
 	cluster_map, cluster_labels, champion_map = load_cluster_map()
 	histories = fetch_all_user_history()
 	for row in histories:
@@ -64,60 +70,19 @@ def entropy_overtime():
 		plt.plot(timestamp_sequence, entropy_sequence, 'r.')
 		plt.show()
 
-def is_winner(match_id, user_id):
-	connection = sqlite3.connect('loldata2.db')
-	cur = connection.cursor()
-	cur.execute('''SELECT accountId1,accountId2,accountId3,accountId4,accountId5,
-	accountId6,accountId7,accountId8,accountId9,accountId10, winner from matches where gameId = ?''', (match_id,))
-	row = cur.fetchone()
-	if row == None:
-		return 0.5
-	if row[10] == 100 and user_id in row[:5] or row[10] == 200 and user_id in row[5:]:
-		return 1
-	else:
-		return 0
-
-def get_ranked_sequence(history):
-	RANKED_QUEUES = [4,420]
-	matches = history['matchlist']['matches'].reverse()
-	ranked_sequence = [m for m in matches if m['queue'] in RANKED_QUEUES]
-	return ranked_sequence
-
-def generate_entropy_sequence(sequence, categories):
-	entropy_seq = []
-	histogram = {}
-	for category in categories:
-		histogram[category] = 0
-	for i in range(sequence):
-		histogram[sequence[i]] += 1
-		list
-
-
-
-def user_entropy(history):
-	#histories = [{'aid':row[0], 'tier':row[1], 'matchlist':json.loads(row[2])} for row in rows]
-	match_seq = get_ranked_sequence(history)
-	champ_seq = [match_reference_dto['champion'] for match_reference_dto in match_seq]
-	role_seq = None
-	champ_entropy_seq = generate_entropy_sequence(champ_seq)
-	role_entropy_seq = generate_entropy_sequence(role_seq)
-
-	#TODO: let's work here.
-
 def entropy_overgame():
+	"""Show, for every single player, their entropy(champ or lane) over games
+	with recent winrate.
+	"""
 	PLOT_RANGE = 200
 	mode = input("color: 1 by cluster, 2 by lane")
 	recent = int(input("winrate recency: "))
 
-
 	cluster_map, cluster_labels, champion_map = load_cluster_map()
 	histories = fetch_all_user_history()
 
-
-
 	colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k']
 	markers = ['o', '+', '.', ',', '-']
-
 	
 	for row in histories:
 		matches = row['matchlist']['matches']
@@ -207,60 +172,9 @@ def entropy_overgame():
 
 		plt.show()
 
-def change_point_tester():
-	a = [1,2,3,4,5,6,7,8,9,8,7,6,5,4,3,2,1,2,3,4,5,6,7]
-	print(get_cusum(a))
-	segments = change_point_analysis(a)
-	print(segments)
-	for s in segments:
-		for i in range(s[0], s[1]):
-			print(a[i], end="")
-		print()
-
-def change_point_analysis(data):
-	if len(data) < 2:
-		return [[0,len(data)]]
-	exists_change = bootstrap_analysis(data)
-	if exists_change == True:
-		index = change_estimator(data)
-		subsegments1 = change_point_analysis(data[0:index])
-		subsegments2 = change_point_analysis(data[index:len(data)])
-		for segment in subsegments2:
-			for i in range(2):
-				segment[i] += index
-		return subsegments1 + subsegments2
-	else:
-		return [[0,len(data)]]
-
-def bootstrap_analysis(data, num_samples = 100, confidence_required = 0.90):
-	cusum_original = get_cusum(data)
-	diff_original = max(cusum_original) - min(cusum_original)
-	confidence_count = 0
-	for i in range(num_samples):
-		bootstrap_sample = random.sample(data, len(data))
-		cusum_sample = get_cusum(bootstrap_sample)
-		diff_sample = max(cusum_sample) - min(cusum_sample)
-		if diff_sample < diff_original:
-			confidence_count += 1
-	confidence_level = confidence_count/num_samples
-	print (confidence_level)
-	return confidence_level > confidence_required
-
-def get_cusum(data):
-	average = np.mean(data)
-	cusum = [0]
-	for i in range(0, len(data)):
-		cusum.append(cusum[-1] + (data[i] - average))
-	return cusum
-
-def change_estimator(data):
-	cusum = get_cusum(data)
-	abs_cusum = [abs(e) for e in cusum]
-	return abs_cusum.index(max(abs_cusum)) - 1
-
-
-
 def entropy_tier():
+	"""TODO: not yet implemented...what is this?
+	"""
 	cluster_map, cluster_labels, champion_map = load_cluster_map()
 	histories = fetch_all_user_history()
 
@@ -280,6 +194,10 @@ def entropy_tier():
 			#win = is_winner(match_reference_dto['gameId'], row['aid'])
 
 def consecutive_victory_plot():
+	"""show plot of players, 2 points for each player, each denoting probability
+	of picking the same champ, either after a victory or a loss with the same champ,
+	two values will add up to the prob. of repicking.
+	"""
 	histories = fetch_all_user_history()
 	data = []
 	for row in histories:
@@ -323,15 +241,14 @@ def consecutive_victory_plot():
 
 	plt.show()
 
-def draw_regression(iv_, dv_, color = 'b-'):
-	iv = np.array(iv_)[np.newaxis].T
-	dv = np.array(dv_)[np.newaxis].T
-	regr = linear_model.LinearRegression()
-	regr.fit(iv, dv)
-	plt.plot(iv, regr.predict(iv), color)
-
-
 def after_win_analysis(has_lost):
+	"""Some people stick with one champ more than others.
+	Generally, everyone is more inclined to pick the same champ if they had
+	previously won with it.
+	But what makes it different for people? maybe their entropy.
+
+	argument: after win analysis or after loss analysis
+	"""
 	histories = fetch_all_user_history()
 	cluster_map, cluster_labels, champion_map = load_cluster_map()	
 	data = []
@@ -403,6 +320,131 @@ def after_win_analysis(has_lost):
 		draw_regression(x2, y2, color[i][0]+'-')
 	plt.show()
 
+def fetch_all_user_history():
+	connection = sqlite3.connect('loldata2.db')
+	cur = connection.cursor()
+	cur.execute("SELECT matchlist.aid, users.tier, matchlist.matchlist FROM matchlist INNER JOIN users ON matchlist.aid = users.aid")
+	rows = cur.fetchall()
+	histories = [{'aid':row[0], 'tier':row[1], 'matchlist':json.loads(row[2])} for row in rows]
+	return histories
+
+def load_cluster_map():
+	cluster_map = {}
+	champion_map = {}
+	cluster_labels = {}
+	with open('clusters.csv') as f:
+		reader = csv.reader(f)
+		for row in reader:
+			cluster_map[int(row[0])] = int(row[2])
+			champion_map[int(row[0])] = row[1]
+			if row[1] == "Ashe":
+				cluster_labels[int(row[2])] = "Marksman"
+			elif row[1] == "Pantheon":
+				cluster_labels[int(row[2])] = "Assassin"
+			elif row[1] == "Rammus":
+				cluster_labels[int(row[2])] = "Tank"
+			elif row[1] == "Ryze":
+				cluster_labels[int(row[2])] = "Mage"
+			elif row[1] == "Soraka":
+				cluster_labels[int(row[2])] = "Support"
+	return cluster_map, cluster_labels, champion_map
+
+def is_winner(match_id, user_id):
+	connection = sqlite3.connect('loldata2.db')
+	cur = connection.cursor()
+	cur.execute('''SELECT accountId1,accountId2,accountId3,accountId4,accountId5,
+	accountId6,accountId7,accountId8,accountId9,accountId10, winner from matches where gameId = ?''', (match_id,))
+	row = cur.fetchone()
+	if row == None:
+		return 0.5
+	if row[10] == 100 and user_id in row[:5] or row[10] == 200 and user_id in row[5:]:
+		return 1
+	else:
+		return 0
+
+def get_ranked_sequence(history):
+	RANKED_QUEUES = [4,420]
+	matches = history['matchlist']['matches'].reverse()
+	ranked_sequence = [m for m in matches if m['queue'] in RANKED_QUEUES]
+	return ranked_sequence
+
+def generate_entropy_sequence(sequence, categories):
+	entropy_seq = []
+	histogram = {}
+	for category in categories:
+		histogram[category] = 0
+	for i in range(sequence):
+		histogram[sequence[i]] += 1
+		list
+
+def user_entropy(history):
+	#histories = [{'aid':row[0], 'tier':row[1], 'matchlist':json.loads(row[2])} for row in rows]
+	match_seq = get_ranked_sequence(history)
+	champ_seq = [match_reference_dto['champion'] for match_reference_dto in match_seq]
+	role_seq = None
+	champ_entropy_seq = generate_entropy_sequence(champ_seq)
+	role_entropy_seq = generate_entropy_sequence(role_seq)
+
+	#TODO: let's work here.
+
+def change_point_tester():
+	a = [1,2,3,4,5,6,7,8,9,8,7,6,5,4,3,2,1,2,3,4,5,6,7]
+	print(get_cusum(a))
+	segments = change_point_analysis(a)
+	print(segments)
+	for s in segments:
+		for i in range(s[0], s[1]):
+			print(a[i], end="")
+		print()
+
+def change_point_analysis(data):
+	if len(data) < 2:
+		return [[0,len(data)]]
+	exists_change = bootstrap_analysis(data)
+	if exists_change == True:
+		index = change_estimator(data)
+		subsegments1 = change_point_analysis(data[0:index])
+		subsegments2 = change_point_analysis(data[index:len(data)])
+		for segment in subsegments2:
+			for i in range(2):
+				segment[i] += index
+		return subsegments1 + subsegments2
+	else:
+		return [[0,len(data)]]
+
+def bootstrap_analysis(data, num_samples = 100, confidence_required = 0.90):
+	cusum_original = get_cusum(data)
+	diff_original = max(cusum_original) - min(cusum_original)
+	confidence_count = 0
+	for i in range(num_samples):
+		bootstrap_sample = random.sample(data, len(data))
+		cusum_sample = get_cusum(bootstrap_sample)
+		diff_sample = max(cusum_sample) - min(cusum_sample)
+		if diff_sample < diff_original:
+			confidence_count += 1
+	confidence_level = confidence_count/num_samples
+	print (confidence_level)
+	return confidence_level > confidence_required
+
+def get_cusum(data):
+	average = np.mean(data)
+	cusum = [0]
+	for i in range(0, len(data)):
+		cusum.append(cusum[-1] + (data[i] - average))
+	return cusum
+
+def change_estimator(data):
+	cusum = get_cusum(data)
+	abs_cusum = [abs(e) for e in cusum]
+	return abs_cusum.index(max(abs_cusum)) - 1
+
+def draw_regression(iv_, dv_, color = 'b-'):
+	iv = np.array(iv_)[np.newaxis].T
+	dv = np.array(dv_)[np.newaxis].T
+	regr = linear_model.LinearRegression()
+	regr.fit(iv, dv)
+	plt.plot(iv, regr.predict(iv), color)
+
 def mean_consecutive_picks():
 	histories = fetch_all_user_history()
 	cluster_map, cluster_labels, champion_map = load_cluster_map()	
@@ -412,39 +454,4 @@ def mean_consecutive_picks():
 		matches = row['matchlist']['matches']
 		pick_sequence = [match_reference_dto['champion'] for match_reference_dto in matches]
 
-
-
-def main():
-	print("1 - visualize pick sequence")
-	print("2 - entropy over time")
-	print("3 - entropy over games")
-	print("4 - entropy per tier")
-	print("5 - consecutive_victory_plot")
-	print("6 - after win analysis")
-	print("7 - after loss analysis")
-	print("9 - exit")
-	num = input("enter command: ")
-	if num == '1':
-		pick_visualize()
-	elif num == '2':
-		entropy_overtime()
-	elif num == '3':
-		entropy_overgame()
-	elif num == '4':
-		entropy_tier()
-	elif num == '5':
-		consecutive_victory_plot()
-	elif num == '6':
-		after_win_analysis(False)
-	elif num == '7':
-		after_win_analysis(True)
-	elif num == '8':
-		change_point_tester()
-	elif num == '9':
-		return
-	return
-
 main()
-
-# x: game, y: entropy, color: lane
-# x: game, y: preformance, color: 

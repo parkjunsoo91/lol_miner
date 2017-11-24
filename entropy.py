@@ -10,7 +10,7 @@ def pdf(hist):
 	distribution = [e/total for e in hist]
 	return distribution
 	
-categories = [0] * 10
+categories = [0] * 100
 
 while True:
 	show_histogram(pdf(categories))
