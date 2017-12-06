@@ -3,6 +3,7 @@ import csv
 import json
 from scipy.stats import entropy
 import matplotlib.pyplot as plt
+import matplotlib.mlab as mlab
 import numpy as np
 from sklearn import linear_model
 import math
@@ -17,6 +18,8 @@ def main():
 	print("5 - consecutive_victory_plot")
 	print("6 - after win analysis")
 	print("7 - after loss analysis")
+	print("11 - champion frequency sequence")
+	print("12 - pdf of champ pick")
 	print("9 - exit")
 	num = input("enter command: ")
 	if num == '1':
@@ -37,6 +40,10 @@ def main():
 		change_point_tester()
 	elif num == '9':
 		return
+	elif num == '11':
+		champ_proportion()
+	elif num == '12':
+		champ_pickratio_pdf()
 	return
 
 
@@ -71,12 +78,12 @@ def entropy_overtime():
 		plt.show()
 
 def entropy_overgame():
-	"""Show, for every single player, their entropy(champ or lane) over games
+	"""Show, for every single player, their entropy(cluster or lane) over games
 	with recent winrate.
 	"""
-	PLOT_RANGE = 200
+	PLOT_RANGE = 5000
 	mode = input("color: 1 by cluster, 2 by lane")
-	recent = int(input("winrate recency: "))
+	winscale = int(input("wingraph: (1) for 0to1 scale, (2) for absolute scale"))
 
 	cluster_map, cluster_labels, champion_map = load_cluster_map()
 	histories = fetch_all_user_history()
@@ -92,6 +99,27 @@ def entropy_overgame():
 		index = 0
 		wins = []
 		kdas = []
+		net_winloss_final = 0
+		for match_reference_dto in matches:
+			queue = match_reference_dto['queue']
+			if queue != 4 and queue != 420 :
+				continue
+			if 'win' in match_reference_dto:
+				if match_reference_dto['win'] == True:
+					net_winloss_final += 1
+				else:
+					net_winloss_final -= 1
+		print('net winloss ', net_winloss_final)
+		if winscale == 1:
+			if net_winloss_final != 0:
+				winloss_weight = 1.0/abs(net_winloss_final)
+			else:
+				winloss_weight = 0.02
+		else:
+			winloss_weight = 0.02
+		net_winloss = 0
+		if net_winloss_final < 0:
+			net_winloss = -1 * net_winloss_final
 		for match_reference_dto in reversed(matches):
 			queue = match_reference_dto['queue']
 			if queue != 4 and queue != 420 :
@@ -104,35 +132,31 @@ def entropy_overgame():
 			#win = is_winner(match_reference_dto['gameId'], row['aid'])
 			if 'win' in match_reference_dto:
 				if match_reference_dto['win'] == True:
-					win = min(1, 0.5 + 0.05*recent)
+					win = 1
 				else:
-					win = max(0, 0.5 - 0.05*recent)
+					win = -1
 				kills = match_reference_dto['kills']
 				deaths = match_reference_dto['deaths']
 				assists = match_reference_dto['assists']
 				kda = math.log2(max((kills + assists) / max(deaths, 1), 0.1))
 			else:
 				print("no winloss info")
-				win = 0.5
+				win = 0
 				kda = 0
-			wins.append(win)
-			winrate = sum(wins) / len(wins)
-			winrate20 = 0
-			if len(wins) > recent:
-				winrate20 = sum(wins[-recent:]) / recent
+			net_winloss += win
 			kdas.append(kda)
 			matchlist_data.append([index, champion_id, 
 				cluster, entropy(cluster_histogram), 
 				lane, entropy([e[1] for e in lane_histogram.items()]),
-				winrate20, kda])
+				net_winloss * winloss_weight, kda])
 
 			index += 1
-
+		print('final net winloss ', net_winloss)
 		entropy_sequence = [m[5] for m in matchlist_data]
 		entropy_change_sequence = []
 		for i in range(len(entropy_sequence) - 1):
 			entropy_change_sequence.append(entropy_sequence[i+1] - entropy_sequence[i])
-		segments = change_point_analysis(entropy_change_sequence)
+		#segments = change_point_analysis(entropy_change_sequence)
 
 		plt.title(row['tier'])
 		if mode == '1':
@@ -152,7 +176,7 @@ def entropy_overgame():
 				index_sequence = [match_data[0] for match_data in matchlist_data if match_data[4] == lane and match_data[0] in range(PLOT_RANGE)]
 				entropy_sequence = [match_data[5] for match_data in matchlist_data if match_data[4] == lane and match_data[0] in range(PLOT_RANGE)]
 				kda_sequence = [match_data[7] for match_data in matchlist_data if match_data[4] == lane and match_data[0] in range(PLOT_RANGE)]
-				averaged_kda_sequence = [np.mean(kda_sequence[max(i-recent,0):i]) for i in range(len(kda_sequence))]
+				#averaged_kda_sequence = [np.mean(kda_sequence[max(i-recent,0):i]) for i in range(len(kda_sequence))]
 				plt.plot(index_sequence, entropy_sequence, colors[colorid]+markers[2])
 				#plt.plot(index_sequence, averaged_kda_sequence, colors[colorid]+markers[2])
 				colorid += 1
@@ -166,11 +190,73 @@ def entropy_overgame():
 		plt.plot(index_sequence, winrate_sequence, 'k-')
 		#plt.plot(index_sequence, kda_sequence)
 
-		segment_sequence = [segment[0] for segment in segments if segment[0] in range(PLOT_RANGE - 1)]
-		bar_height = [1 for i in segment_sequence]
-		plt.plot(segment_sequence, bar_height, 'mo')
+		#segment_sequence = [segment[0] for segment in segments if segment[0] in range(PLOT_RANGE - 1)]
+		#bar_height = [1 for i in segment_sequence]
+		#plt.plot(segment_sequence, bar_height, 'mo')
 
 		plt.show()
+
+def champ_proportion():
+	#load data
+	histories = fetch_all_user_history()
+
+	for row in histories:
+		matches = row['matchlist']['matches']
+
+def champ_pickratio_pdf():
+	histories = fetch_all_user_history()
+	champ_mean_data = []
+	lane_mean_data = []
+	for row in histories:
+		matches = row['matchlist']['matches']
+		matches_filtered = [m for m in reversed(matches) if (m['queue']==4 or m['queue']==420)]
+		champ_ratio_seq, lane_ratio_seq = pickratio_pdf(matches_filtered)
+		champ_mean_data.append(np.mean(champ_ratio_seq))
+		lane_mean_data.append(np.mean(lane_ratio_seq))
+	show_prob_distribution([champ_mean_data, lane_mean_data])
+
+def pickratio_pdf(matches):
+	champ_freq = {}
+	lane_freq = {}
+	champ_ratio_sequence = []
+	lane_ratio_sequence = []
+	for i in range(len(matches)):
+		match_ref_dto = matches[i]
+
+		champ = match_ref_dto['champion']
+		if champ in champ_freq and i > 0:
+			ratio = champ_freq[champ]/i
+			champ_freq[champ] += 1
+		else:
+			ratio = 0
+			champ_freq[champ] = 1
+		champ_ratio_sequence.append(ratio)
+
+		lane = match_ref_dto['lane']
+		if lane in lane_freq and i > 0:
+			ratio = lane_freq[lane]/i
+			lane_freq[lane] += 1
+		else:
+			ratio = 0
+			lane_freq[lane] = 1
+		lane_ratio_sequence.append(ratio)
+	show_prob_distribution([champ_ratio_sequence, lane_ratio_sequence])
+	return champ_ratio_sequence, lane_ratio_sequence
+
+def show_prob_distribution(data_list):
+	color = ['red', 'green']
+	for i in range(len(data_list)):
+		data = data_list[i]
+		mu = np.mean(data)
+		sigma = np.std(data)
+		num_bins = 50
+		n, bins, patches = plt.hist(data, num_bins, normed=1, facecolor=color[i], alpha=0.5)
+		y = mlab.normpdf(bins, mu, sigma)
+		plt.plot(bins, y, 'r--')
+	plt.xlabel('champ pickratio')
+	plt.ylabel('probability')
+	plt.title(r'$\mu={}$, $\sigma={}$'.format(mu, sigma))
+	plt.show()
 
 def entropy_tier():
 	"""TODO: not yet implemented...what is this?
