@@ -4,8 +4,10 @@ import json
 from scipy.stats import entropy
 import matplotlib.pyplot as plt
 import matplotlib.mlab as mlab
+from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
 from sklearn import linear_model
+from sklearn.cluster import KMeans
 import math
 import random
 
@@ -41,7 +43,7 @@ def main():
 	elif num == '9':
 		return
 	elif num == '11':
-		champ_proportion()
+		return
 	elif num == '12':
 		champ_pickratio_pdf()
 	return
@@ -196,24 +198,50 @@ def entropy_overgame():
 
 		plt.show()
 
-def champ_proportion():
-	#load data
-	histories = fetch_all_user_history()
 
-	for row in histories:
-		matches = row['matchlist']['matches']
 
 def champ_pickratio_pdf():
 	histories = fetch_all_user_history()
 	champ_mean_data = []
+	champ_std_data = []
 	lane_mean_data = []
+	lane_std_data = []
 	for row in histories:
 		matches = row['matchlist']['matches']
 		matches_filtered = [m for m in reversed(matches) if (m['queue']==4 or m['queue']==420)]
 		champ_ratio_seq, lane_ratio_seq = pickratio_pdf(matches_filtered)
 		champ_mean_data.append(np.mean(champ_ratio_seq))
+		champ_std_data.append(np.std(champ_ratio_seq))
 		lane_mean_data.append(np.mean(lane_ratio_seq))
+		lane_std_data.append(np.std(lane_ratio_seq))	
 	show_prob_distribution([champ_mean_data, lane_mean_data])
+	X = np.array([champ_mean_data, champ_std_data]).T
+	clusters = doKmeans(X, 2)
+	show_clusters(X, clusters)
+	X = np.array([lane_mean_data, lane_std_data]).T
+	clusters = doKmeans(X, 2)
+	show_clusters(X, clusters)
+
+def doKmeans(X, n):
+	kmeans = KMeans(n_clusters=n, random_state=0)
+	kmeans.fit(X)
+	distances = kmeans.transform(X)
+	clusters = np.argmin(distances, axis=1)
+	return clusters
+
+def show_clusters(X, labels):
+	colors = ['r', 'g']
+	markers = ['o', '+']
+	for i in range(np.shape(X)[0]):
+		label = labels[i]
+		color = colors[label%7]
+		marker = markers[label//7]
+		style = color + marker
+		plt.plot(X[i][0], X[i][1], style)
+	plt.xlabel('avg')
+	plt.ylabel('std')
+	plt.title('clusters')
+	plt.show()
 
 def pickratio_pdf(matches):
 	champ_freq = {}
@@ -263,21 +291,60 @@ def entropy_tier():
 	"""
 	cluster_map, cluster_labels, champion_map = load_cluster_map()
 	histories = fetch_all_user_history()
-
+	mmr_list = []
+	champ_entropy_list = []
+	lane_entropy_list = []
 	for row in histories:
+		mmr = tier_to_MMR(row['tier'])
+		champ_freq = {}
+		lane_freq = {}
 		matches = row['matchlist']['matches']
-		matchlist_data = []
-		cluster_histogram = [0] * len(cluster_labels)
-		lane_histogram = {'TOP':0,'MID':0,'BOTTOM':0,'JUNGLE':0,}
-		index = 0
-		wins = []
-		for match_reference_dto in reversed(matches):
-			champion_id = match_reference_dto['champion']
-			cluster = cluster_map[champion_id]
-			cluster_histogram[cluster] += 1
-			lane = match_reference_dto['lane']
-			lane_histogram[lane] += 1
-			#win = is_winner(match_reference_dto['gameId'], row['aid'])
+		matches_filtered = [m for m in reversed(matches) if (m['queue']==4 or m['queue']==420)]
+		for match_ref_dto in matches_filtered:
+			champ = match_ref_dto['champion']
+			if champ in champ_freq:
+				champ_freq[champ] += 1
+			else:
+				champ_freq[champ] = 0
+			lane = match_ref_dto['lane']
+			if lane in lane_freq:
+				lane_freq[lane] += 1
+			else:
+				lane_freq[lane] = 0
+		mmr_list.append(mmr)
+		champ_entropy_list.append(entropy([e[1] for e in champ_freq.items()]))
+		lane_entropy_list.append(entropy([e[1] for e in lane_freq.items()]))
+	#now visualize the 3d plot
+	fig = plt.figure()
+	ax = fig.add_subplot(111, projection='3d')
+	ax.scatter(champ_entropy_list, lane_entropy_list, mmr_list, c='r', marker='o')
+	ax.set_xlabel('champ entropy')
+	ax.set_ylabel('lane entropy')
+	ax.set_zlabel('estimated mmr')
+	plt.show()
+
+
+
+
+def tier_to_MMR(tier):
+	if tier == 'BRONZE':
+		mmr = 1
+	elif tier == 'SILVER':
+		mmr = 2
+	elif tier == 'GOLD':
+		mmr = 3
+	elif tier == 'PLATINUM':
+		mmr = 4
+	elif tier == 'DIAMOND':
+		mmr = 5
+	elif tier == 'MASTER':
+		mmr = 6
+	elif tier == 'CHALLENGER':
+		mmr = 7
+	else:
+		print("error")
+	return mmr
+
 
 def consecutive_victory_plot():
 	"""show plot of players, 2 points for each player, each denoting probability
