@@ -1,6 +1,8 @@
 import sqlite3
 import csv
 import json
+from scipy import stats
+from scipy.stats import ttest_ind
 from scipy.stats import entropy
 import matplotlib.pyplot as plt
 import matplotlib.mlab as mlab
@@ -214,7 +216,7 @@ def champ_pickratio_pdf():
 		champ_std_data.append(np.std(champ_ratio_seq))
 		lane_mean_data.append(np.mean(lane_ratio_seq))
 		lane_std_data.append(np.std(lane_ratio_seq))	
-	show_prob_distribution([champ_mean_data, lane_mean_data])
+	#show_prob_distribution([champ_mean_data, lane_mean_data])
 	X = np.array([champ_mean_data, champ_std_data]).T
 	clusters = doKmeans(X, 2)
 	show_clusters(X, clusters)
@@ -268,79 +270,292 @@ def pickratio_pdf(matches):
 			ratio = 0
 			lane_freq[lane] = 1
 		lane_ratio_sequence.append(ratio)
-	show_prob_distribution([champ_ratio_sequence, lane_ratio_sequence])
+	#show_prob_distribution([champ_ratio_sequence, lane_ratio_sequence])
 	return champ_ratio_sequence, lane_ratio_sequence
 
 def show_prob_distribution(data_list):
-	color = ['red', 'green']
+	color = ['yellow', 'blue', 'red']
 	for i in range(len(data_list)):
 		data = data_list[i]
-		mu = np.mean(data)
-		sigma = np.std(data)
+		#mu = np.mean(data)
+		#sigma = np.std(data)
 		num_bins = 50
-		n, bins, patches = plt.hist(data, num_bins, normed=1, facecolor=color[i], alpha=0.5)
-		y = mlab.normpdf(bins, mu, sigma)
-		plt.plot(bins, y, 'r--')
+		n, bins, patches = plt.hist(data, num_bins, normed=None, facecolor=color[i], alpha=0.5)
+		#y = mlab.normpdf(bins, mu, sigma)
+		#plt.plot(bins, y, 'r--')
 	plt.xlabel('champ pickratio')
 	plt.ylabel('probability')
-	plt.title(r'$\mu={}$, $\sigma={}$'.format(mu, sigma))
+	#plt.title(r'$\mu={}$, $\sigma={}$'.format(mu, sigma))
 	plt.show()
 
-def entropy_tier():
-	"""TODO: not yet implemented...what is this?
-	"""
-	cluster_map, cluster_labels, champion_map = load_cluster_map()
-	histories = fetch_all_user_history()
-	mmr_list = []
-	champ_entropy_list = []
-	lane_entropy_list = []
-	for row in histories:
-		mmr = tier_to_MMR(row['tier'])
-		champ_freq = {}
-		lane_freq = {}
+class UserData:
+	def __init__(self, row):
+		self.tier = tier_to_MMR(row['tier'])
+		self.champ_distr = {}
+		self.role_distr = {}
 		matches = row['matchlist']['matches']
 		matches_filtered = [m for m in reversed(matches) if (m['queue']==4 or m['queue']==420)]
 		for match_ref_dto in matches_filtered:
 			champ = match_ref_dto['champion']
-			if champ in champ_freq:
-				champ_freq[champ] += 1
+			if champ in self.champ_distr:
+				self.champ_distr[champ] += 1
 			else:
-				champ_freq[champ] = 0
+				self.champ_distr[champ] = 1
 			lane = match_ref_dto['lane']
-			if lane in lane_freq:
-				lane_freq[lane] += 1
+			role = match_ref_dto['role']
+			position = lane + role
+			if position in self.role_distr:
+				self.role_distr[position] += 1
 			else:
-				lane_freq[lane] = 0
-		mmr_list.append(mmr)
-		champ_entropy_list.append(entropy([e[1] for e in champ_freq.items()]))
-		lane_entropy_list.append(entropy([e[1] for e in lane_freq.items()]))
+				self.role_distr[position] = 1
+		self.games_played = len(matches_filtered)
+		self.champ_entropy = entropy(list(self.champ_distr.values()))
+		self.role_entropy = entropy(list(self.role_distr.values()))
+		self.champ_most_freq = sorted(self.champ_distr.values(), reverse = True)
+		self.role_most_freq = sorted(self.role_distr.values(), reverse = True)
+		self.most_champ_id = sorted(self.champ_distr.items(), key=lambda x: x[1], reverse=True)[0][0]
+		self.most_role_id = sorted(self.role_distr.items(), key=lambda x: x[1], reverse=True)[0][0]
+
+		self.champ_wins = {}
+		self.role_wins = {}
+		self.games_won = 0
+		self.champ_lost = {}
+		self.role_lost = {}
+		self.games_lost = 0
+		self.games_norecord = 0
+		for key in self.champ_distr:
+			self.champ_wins[key] = 0
+			self.champ_lost[key] = 0
+		for key in self.role_distr:
+			self.role_wins[key] = 0
+			self.role_lost[key] = 0
+		for match_ref_dto in matches_filtered:
+			if 'win' in match_ref_dto:
+				champ = match_ref_dto['champion']
+				position = match_ref_dto['lane'] + match_ref_dto['role']
+				if match_ref_dto['win'] == True:
+					self.champ_wins[champ] += 1
+					self.role_wins[position] += 1
+					self.games_won += 1
+				else:
+					self.champ_lost[champ] += 1
+					self.role_lost[position] += 1
+					self.games_lost += 1
+			else:
+				self.games_norecord += 1
+		#print(self.games_norecord, self.games_played)
+		'''
+		print("totalgames with record:", self.games_played - self.games_norecord)
+		print("total wins:", self.games_won, "  total lost:", self.games_lost)
+		l = sorted(self.champ_distr.items(), key=lambda x: x[1], reverse=True)
+		for i in range(5):
+			cid = l[i][0]
+			print("champ", cid, "played:", self.champ_distr[cid], "won:", self.champ_wins[cid], "lost", self.champ_lost[cid], "winrate", self.champ_wins[cid]/self.champ_lost[cid])
+		'''
+
+
+def binned_diagram(data, binsize):
+	#for a 1-dimensional data
+	agg = 0
+	x = []
+	y = []
+	for i in range(len(data)):
+		agg += data[i]
+		if (i+1) % binsize == 0:
+			midpoint = i + binsize/2
+			x.append(midpoint)
+			y.append(agg)
+			agg = 0
+	return x, y
+
+def binned_avg(x, y, binnum):
+	bin_means, bin_edges, binnumber = stats.binned_statistic(x, y, statistic='mean', bins=binnum)
+	bin_width = (bin_edges[1] - bin_edges[0])
+	bin_centers = bin_edges[1:] - bin_width/2	
+	plt.hlines(bin_means, bin_edges[:-1], bin_edges[1:], colors='r', lw=2, label='binned statistic of data')
+
+
+def entropy_tier():
+	"""analyze entropy and other statistics per tier separately
+	"""
+	cluster_map, cluster_labels, champion_map = load_cluster_map()
+	histories = fetch_all_user_history()
+	user_list = []
+	for row in histories:
+		user = UserData(row)
+		user_list.append(user)
+		
+		champs = sorted(user.champ_distr.items(), reverse=True, key = lambda x: x[1])
+		mostchamp = champs[0][0]
+		roles = sorted(user.role_distr.items(), reverse=True, key = lambda x: x[1])
+		mostrole = roles[0][0]
+
+		matches = row['matchlist']['matches']
+		matches_filtered = [m for m in reversed(matches) if (m['queue']==4 or m['queue']==420)]
+		gamecount = 0
+
+		#mostchamp_history = [1 if matches_filtered[i]['champion'] == mostchamp else 0 for i in range(len(matches_filtered))]
+		#mostrole_history = [1 if matches_filtered[i]['lane'] + matches_filtered[i]['role'] == mostrole else 0 for i in range(len(matches_filtered))]
+		#win_history = [1 if 'win' in matches_filtered[i] and matches_filtered[i]['win'] == True else 0 for i in range(len(matches_filtered)) ]
+		mostchamp_history = [i for i in range(len(matches_filtered)) if matches_filtered[i]['champion'] == mostchamp]
+		mostrole_history = [i for i in range(len(matches_filtered)) if matches_filtered[i]['lane'] + matches_filtered[i]['role'] == mostrole ]
+		win_history = [i for i in range(len(matches_filtered)) if 'win' in matches_filtered[i] and matches_filtered[i]['win'] == True ]
+		#show_prob_distribution([[range(len(matches_filtered))], mostrole_history, win_history])
+		show_prob_distribution([[range(len(matches_filtered))], mostchamp_history, win_history])
+		#x, y = binned_diagram(mostrole_history, 20)
+		#plt.plot(x, y)
+		#x, y = binned_diagram(win_history, 20)
+		#plt.plot(x, y)
+		#x, y = binned_diagram([1]*len(matches_filtered), 20)
+		#plt.plot(x, y)
+		#plt.show()
+		
+
 	#now visualize the 3d plot
+	"""
 	fig = plt.figure()
 	ax = fig.add_subplot(111, projection='3d')
-	ax.scatter(champ_entropy_list, lane_entropy_list, mmr_list, c='r', marker='o')
+	ax.scatter([u.champ_entropy for u in user_list], [u.role_entropy for u in user_list], [u.tier for u in user_list], c='r', marker='o')
 	ax.set_xlabel('champ entropy')
 	ax.set_ylabel('lane entropy')
 	ax.set_zlabel('estimated mmr')
 	plt.show()
+	"""
+	tiers = [{} for i in range(7)]
+	for t in range(len(tiers)):
+		users = [u for u in user_list if u.tier == t]
+		tiers[t]['N_mean'] = np.mean([u.games_played for u in users])
+		tiers[t]['Sc_mean'] = np.mean([u.champ_entropy for u in users])
+		tiers[t]['Sr_mean'] = np.mean([u.role_entropy for u in users])
+		tiers[t]['Fc_most_means'] = []
+		for i in range(30):
+			l = []
+			for u in users:
+				if i < len(u.champ_most_freq):
+					l.append(u.champ_most_freq[i] / u.games_played)
+				else:
+					l.append(0)
+			tiers[t]['Fc_most_means'].append(np.mean(l))
+		tiers[t]['Fr_most_means'] = []
+		for i in range(10):
+			l = []
+			for u in users:
+				if i < len(u.role_most_freq):
+					l.append(u.role_most_freq[i] / u.games_played)
+				else:
+					l.append(0)
+			tiers[t]['Fr_most_means'].append(np.mean(l))
+		tiers[t]['Fc_most_std'] = np.std([u.champ_most_freq[0]/ u.games_played for u in users])
+		tiers[t]['Fr_most_std'] = np.std([u.role_most_freq[0]/ u.games_played for u in users])
+		#for u in users:
+			#print(u.champ_most_freq[0] - u.champ_wins[u.most_champ_id] - u.champ_lost[u.most_champ_id])
+
+		tiers[t]['WR_mostchamp_mean'] = np.mean([u.champ_wins[u.most_champ_id] / (u.champ_wins[u.most_champ_id] + u.champ_lost[u.most_champ_id]) for u in users if u.games_norecord < u.games_played / 10])
+		tiers[t]['winrate_mean'] = np.mean([u.games_won / (u.games_won + u.games_lost) for u in users if u.games_norecord < u.games_played / 10])
+		tiers[t]['WR_mostrole_mean'] = np.mean([u.role_wins[u.most_role_id] / (u.role_wins[u.most_role_id] + u.role_lost[u.most_role_id]) for u in users if u.games_norecord < u.games_played / 10])
+
+	
+	plt.plot(range(1,8), [t['winrate_mean'] for t in tiers])
+	plt.plot(range(1,8), [t['WR_mostchamp_mean'] for t in tiers])
+	plt.plot(range(1,8), [t['WR_mostrole_mean'] for t in tiers])
+	print([t['WR_mostchamp_mean'] for t in tiers])
+	print([t['WR_mostrole_mean'] for t in tiers])
+	plt.show()
+	
+	for i in range(6):
+		for j in range(i+1,7):	
+			Fc_most_1 = [u.champ_most_freq[0]/u.games_played for u in user_list if u.tier == i]
+			Fc_most_2 = [u.champ_most_freq[0]/u.games_played for u in user_list if u.tier == j]
+			stat, pval = ttest_ind(Fc_most_1, Fc_most_2, equal_var = False)
+			print ("tiers", i, j, stat, pval)
+	for i in range(6):
+		for j in range(i+1,7):	
+			Fr_most_1 = [u.role_most_freq[0]/u.games_played for u in user_list if u.tier == i]
+			Fr_most_2 = [u.role_most_freq[0]/u.games_played for u in user_list if u.tier == j]
+			stat, pval = ttest_ind(Fr_most_1, Fr_most_2, equal_var = False)
+			print ("tiers", i, j, stat, pval)
+
+	for i in range(7):
+		x = [u.games_played for u in user_list if u.tier == i]
+		y = [u.champ_most_freq[0]/u.games_played for u in user_list if u.tier == i]
+		line, = plt.plot(x,y,'.', label='tier'+str(i+1))
+		#line.set_label('what')
+		plt.legend()
+		binned_avg(x, y, 10)
+		plt.ylim((0,1))
+		plt.show()
+	for i in range(7):
+		x = [u.games_played for u in user_list if u.tier == i]
+		y = [u.role_most_freq[0]/u.games_played for u in user_list if u.tier == i]
+		line, = plt.plot(x,y,'.', label='tier'+str(i+1))
+		#line.set_label('what')
+		plt.legend()
+		binned_avg(x, y, 10)
+		plt.ylim((0,1))
+		plt.show()
+
+	plt.boxplot([[u.games_played for u in user_list if u.tier == i] for i in range(7)])
+	plt.ylim((0,5000))
+	plt.show()
+	plt.boxplot([[u.champ_entropy for u in user_list if u.tier == i] for i in range(7)])
+	plt.show()
+	plt.boxplot([[u.role_entropy for u in user_list if u.tier == i] for i in range(7)])
+	plt.show()
+	
+
+	plt.boxplot([[u.champ_most_freq[0]/u.games_played for u in user_list if u.tier == i] for i in range(7)])
+	plt.plot(range(1,8), [t['Fc_most_means'][0] for t in tiers])
+	plt.plot(range(1,8), [t['Fc_most_means'][0] + t['Fc_most_std'] for t in tiers], '--')
+	plt.plot(range(1,8), [t['Fc_most_means'][0] - t['Fc_most_std'] for t in tiers], '--')
+	plt.ylim((0,1))
+	plt.show()
+
+	plt.boxplot([[u.role_most_freq[0]/u.games_played for u in user_list if u.tier == i] for i in range(7)])
+	plt.plot(range(1,8), [t['Fr_most_means'][0] for t in tiers])
+	plt.plot(range(1,8), [t['Fr_most_means'][0] + t['Fr_most_std'] for t in tiers], '--')
+	plt.plot(range(1,8), [t['Fr_most_means'][0] - t['Fr_most_std'] for t in tiers], '--')
+	plt.ylim((0,1))
+	plt.show()
+
+
+	for i in range(30):
+		plt.plot(range(1,8), [sum(t['Fc_most_means'][:(i+1)]) for t in tiers])
+	plt.ylim((0,1))
+	plt.show()
+
+	for i in range(10):
+		plt.plot(range(1,8), [sum(t['Fr_most_means'][:(i+1)]) for t in tiers])
+	plt.ylim((0,1))
+	plt.show()
+
+	for i in range(10):
+		plt.plot(range(1,8), [t['Fc_most_means'][:(i+1)] for t in tiers])
+	plt.show()
+
+	for i in range(10):
+		plt.plot(range(1,8), [t['Fr_most_means'][:(i+1)] for t in tiers])
+	plt.show()
+	
+	return
 
 
 
 
 def tier_to_MMR(tier):
 	if tier == 'BRONZE':
-		mmr = 1
+		mmr = 0
 	elif tier == 'SILVER':
-		mmr = 2
+		mmr = 1
 	elif tier == 'GOLD':
-		mmr = 3
+		mmr = 2
 	elif tier == 'PLATINUM':
-		mmr = 4
+		mmr = 3
 	elif tier == 'DIAMOND':
-		mmr = 5
+		mmr = 4
 	elif tier == 'MASTER':
-		mmr = 6
+		mmr = 5
 	elif tier == 'CHALLENGER':
-		mmr = 7
+		mmr = 6
 	else:
 		print("error")
 	return mmr
