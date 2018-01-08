@@ -288,33 +288,34 @@ def show_prob_distribution(data_list):
 	#plt.title(r'$\mu={}$, $\sigma={}$'.format(mu, sigma))
 	plt.show()
 
+
+		
 class UserData:
 	def __init__(self, row):
 		self.tier = tier_to_MMR(row['tier'])
-		self.champ_distr = {}
-		self.role_distr = {}
+		self.champ_freq = {}
+		self.role_freq = {}
 		matches = row['matchlist']['matches']
-		matches_filtered = [m for m in reversed(matches) if (m['queue']==4 or m['queue']==420)]
-		for match_ref_dto in matches_filtered:
+		self.ranked_matches = [m for m in reversed(matches) if (m['queue']==4 or m['queue']==420)]
+		for match_ref_dto in self.ranked_matches:
 			champ = match_ref_dto['champion']
-			if champ in self.champ_distr:
-				self.champ_distr[champ] += 1
-			else:
-				self.champ_distr[champ] = 1
-			lane = match_ref_dto['lane']
-			role = match_ref_dto['role']
-			position = lane + role
-			if position in self.role_distr:
-				self.role_distr[position] += 1
-			else:
-				self.role_distr[position] = 1
-		self.games_played = len(matches_filtered)
-		self.champ_entropy = entropy(list(self.champ_distr.values()))
-		self.role_entropy = entropy(list(self.role_distr.values()))
-		self.champ_most_freq = sorted(self.champ_distr.values(), reverse = True)
-		self.role_most_freq = sorted(self.role_distr.values(), reverse = True)
-		self.most_champ_id = sorted(self.champ_distr.items(), key=lambda x: x[1], reverse=True)[0][0]
-		self.most_role_id = sorted(self.role_distr.items(), key=lambda x: x[1], reverse=True)[0][0]
+			if not champ in self.champ_freq:
+				self.champ_freq[champ] = 0
+			self.champ_freq[champ] += 1
+			position = match_ref_dto['lane'] + match_ref_dto['role']
+			if not position in self.role_freq:
+				self.role_freq[position] = 0
+			self.role_freq[position] += 1
+			
+		self.games_played = len(self.ranked_matches)
+		self.champ_entropy = entropy(list(self.champ_freq.values()))
+		self.role_entropy = entropy(list(self.role_freq.values()))
+		self.champ_freq_sorted = sorted(self.champ_freq.items(), key=lambda x: x[1], reverse=True)
+		self.role_freq_sorted = sorted(self.role_freq.items(), key=lambda x: x[1], reverse=True)
+		self.champ_most_freq = [e[1] for e in self.champ_freq_sorted]
+		self.role_most_freq = [e[1] for e in self.role_freq_sorted]
+		self.most_champ_id = self.champ_freq_sorted[0][0]
+		self.most_role_id = self.role_freq_sorted[0][0]
 
 		self.champ_wins = {}
 		self.role_wins = {}
@@ -323,13 +324,13 @@ class UserData:
 		self.role_lost = {}
 		self.games_lost = 0
 		self.games_norecord = 0
-		for key in self.champ_distr:
+		for key in self.champ_freq:
 			self.champ_wins[key] = 0
 			self.champ_lost[key] = 0
-		for key in self.role_distr:
+		for key in self.role_freq:
 			self.role_wins[key] = 0
 			self.role_lost[key] = 0
-		for match_ref_dto in matches_filtered:
+		for match_ref_dto in self.ranked_matches:
 			if 'win' in match_ref_dto:
 				champ = match_ref_dto['champion']
 				position = match_ref_dto['lane'] + match_ref_dto['role']
@@ -347,12 +348,19 @@ class UserData:
 		'''
 		print("totalgames with record:", self.games_played - self.games_norecord)
 		print("total wins:", self.games_won, "  total lost:", self.games_lost)
-		l = sorted(self.champ_distr.items(), key=lambda x: x[1], reverse=True)
+		l = sorted(self.champ_freq.items(), key=lambda x: x[1], reverse=True)
 		for i in range(5):
 			cid = l[i][0]
-			print("champ", cid, "played:", self.champ_distr[cid], "won:", self.champ_wins[cid], "lost", self.champ_lost[cid], "winrate", self.champ_wins[cid]/self.champ_lost[cid])
+			print("champ", cid, "played:", self.champ_freq[cid], "won:", self.champ_wins[cid], "lost", self.champ_lost[cid], "winrate", self.champ_wins[cid]/self.champ_lost[cid])
 		'''
-
+	def mostchamp_history(self):
+		mostchamp = self.champ_freq_sorted[0][0]
+		return [i for i in range(self.games_played) if self.ranked_matches[i]['champion'] == mostchamp]
+	def mostrole_history(self):
+		mostrole = self.role_freq_sorted[0][0]
+		return [i for i in range(self.games_played) if self.ranked_matches[i]['lane'] + self.ranked_matches[i]['role'] == mostrole ]
+	def win_history(self):
+		return [i for i in range(self.games_played) if 'win' in self.ranked_matches[i] and self.ranked_matches[i]['win'] == True ]
 
 def binned_diagram(data, binsize):
 	#for a 1-dimensional data
@@ -384,31 +392,9 @@ def entropy_tier():
 	for row in histories:
 		user = UserData(row)
 		user_list.append(user)
-		
-		champs = sorted(user.champ_distr.items(), reverse=True, key = lambda x: x[1])
-		mostchamp = champs[0][0]
-		roles = sorted(user.role_distr.items(), reverse=True, key = lambda x: x[1])
-		mostrole = roles[0][0]
 
-		matches = row['matchlist']['matches']
-		matches_filtered = [m for m in reversed(matches) if (m['queue']==4 or m['queue']==420)]
-		gamecount = 0
-
-		#mostchamp_history = [1 if matches_filtered[i]['champion'] == mostchamp else 0 for i in range(len(matches_filtered))]
-		#mostrole_history = [1 if matches_filtered[i]['lane'] + matches_filtered[i]['role'] == mostrole else 0 for i in range(len(matches_filtered))]
-		#win_history = [1 if 'win' in matches_filtered[i] and matches_filtered[i]['win'] == True else 0 for i in range(len(matches_filtered)) ]
-		mostchamp_history = [i for i in range(len(matches_filtered)) if matches_filtered[i]['champion'] == mostchamp]
-		mostrole_history = [i for i in range(len(matches_filtered)) if matches_filtered[i]['lane'] + matches_filtered[i]['role'] == mostrole ]
-		win_history = [i for i in range(len(matches_filtered)) if 'win' in matches_filtered[i] and matches_filtered[i]['win'] == True ]
-		#show_prob_distribution([[range(len(matches_filtered))], mostrole_history, win_history])
-		show_prob_distribution([[range(len(matches_filtered))], mostchamp_history, win_history])
-		#x, y = binned_diagram(mostrole_history, 20)
-		#plt.plot(x, y)
-		#x, y = binned_diagram(win_history, 20)
-		#plt.plot(x, y)
-		#x, y = binned_diagram([1]*len(matches_filtered), 20)
-		#plt.plot(x, y)
-		#plt.show()
+		show_prob_distribution([[range(user.games_played)], user.mostrole_history(), user.win_history()])
+		show_prob_distribution([[range(user.games_played)], user.mostchamp_history(), user.win_history()])
 		
 
 	#now visualize the 3d plot
