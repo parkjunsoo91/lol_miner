@@ -296,7 +296,7 @@ class UserData:
 		self.champ_freq = {}
 		self.role_freq = {}
 		matches = row['matchlist']['matches']
-		self.ranked_matches = [m for m in reversed(matches) if (m['queue']==4 or m['queue']==420)]
+		self.ranked_matches = [m for m in reversed(matches) if (m['queue'] in [4, 410, 420, 42, 440])]
 		for match_ref_dto in self.ranked_matches:
 			champ = match_ref_dto['champion']
 			if not champ in self.champ_freq:
@@ -344,15 +344,16 @@ class UserData:
 					self.games_lost += 1
 			else:
 				self.games_norecord += 1
-		#print(self.games_norecord, self.games_played)
-		'''
-		print("totalgames with record:", self.games_played - self.games_norecord)
-		print("total wins:", self.games_won, "  total lost:", self.games_lost)
-		l = sorted(self.champ_freq.items(), key=lambda x: x[1], reverse=True)
-		for i in range(5):
-			cid = l[i][0]
-			print("champ", cid, "played:", self.champ_freq[cid], "won:", self.champ_wins[cid], "lost", self.champ_lost[cid], "winrate", self.champ_wins[cid]/self.champ_lost[cid])
-		'''
+	def champ_initial_entropy(self, num=0):
+		if num == 0:
+			return self.champ_entropy
+		champ_freq = {}
+		for key in self.champ_freq:
+			champ_freq[key] = 0
+		for i in range(num):
+			champ_freq[self.ranked_matches[i]['champion']] += 1
+
+
 	def mostchamp_history(self):
 		mostchamp = self.champ_freq_sorted[0][0]
 		return [i for i in range(self.games_played) if self.ranked_matches[i]['champion'] == mostchamp]
@@ -393,8 +394,8 @@ def entropy_tier():
 		user = UserData(row)
 		user_list.append(user)
 
-		show_prob_distribution([[range(user.games_played)], user.mostrole_history(), user.win_history()])
-		show_prob_distribution([[range(user.games_played)], user.mostchamp_history(), user.win_history()])
+		#show_prob_distribution([[range(user.games_played)], user.mostrole_history(), user.win_history()])
+		#show_prob_distribution([[range(user.games_played)], user.mostchamp_history(), user.win_history()])
 		
 
 	#now visualize the 3d plot
@@ -407,6 +408,146 @@ def entropy_tier():
 	ax.set_zlabel('estimated mmr')
 	plt.show()
 	"""
+
+	"""
+	for u in user_list:
+		picks = {}
+		roles = {}
+		wins = [0]
+		timestamp = []
+		for key in u.champ_freq:
+			picks[key] = [0]
+		for key in u.role_freq:
+			roles[key] = [0]
+		for i in range(u.games_played):
+			champ = u.ranked_matches[i]['champion']
+			role = u.ranked_matches[i]['lane'] + u.ranked_matches[i]['role']
+			for key in picks:
+				picks[key].append(picks[key][-1])
+			for key in roles:
+				roles[key].append(roles[key][-1])
+			picks[champ][-1] += 1
+			roles[role][-1] += 1
+			wins.append(wins[i] + 1 if ('win' in u.ranked_matches[i] and u.ranked_matches[i]['win'] == True) else wins[i])
+			timestamp.append(u.ranked_matches[i]['timestamp'])
+		#choose index
+		indices = range(u.games_played + 1)
+		#indices = timestamp
+		timestamp.insert(0, timestamp[0])
+		#choose role or champion
+		picks_ordered = sorted(picks.items(), key=lambda x: x[1], reverse=True)
+		roles_ordered = sorted(roles.items(), key=lambda x: x[1], reverse=True)
+		for i in range(min(10, len(picks_ordered))): #only track top 10 picks
+			plt.plot(indices, picks_ordered[i][1])
+		#for i in range(min(5, len(roles_ordered))): #only track top 5 roles
+		#	plt.plot(indices, roles_ordered[i][1])
+		#plt.plot(indices, range(u.games_played + 1), 'k--')
+		#plt.plot(indices, wins, 'k-')
+		plt.title("Character Accumulation Over Time")
+		plt.xlabel('Number of Games Played')
+		plt.ylabel('Cumulative Character Frequency')
+		plt.show()
+	"""
+	
+	for i in range(7):
+		users = [u for u in user_list if u.tier == i]
+		print("tier", i, len(users))
+		entropy_seq_list = []
+		for u in users:
+			x, y, z, seq, xi, yi, zi = [], [], [], [], [], [], []
+			picks = {}
+			for key in u.champ_freq:
+				picks[key] = 0
+			interval = 1000 # 1000 for entire entropy
+			for i in range(u.games_played):
+				picks[u.ranked_matches[i]['champion']] += 1
+				x.append(i)
+				y.append(entropy(list(picks.values())))
+				z.append(picks[u.most_champ_id]/(i+1))
+				seq.append(1 if u.most_champ_id == u.ranked_matches[i]['champion'] else 0)
+				#if i < interval:
+				#	continue
+				games_in_interval = u.ranked_matches[max(0, i-interval):i]
+				picks_interval = {}
+				for key in u.champ_freq:
+					picks_interval[key] = 0
+				for j in range(len(games_in_interval)):
+					picks_interval[games_in_interval[j]['champion']] += 1
+				xi.append(i)				
+				yi.append(entropy(list(picks_interval.values())))
+				#zi.append(picks_interval[u.most_champ_id]/(len(games_in_interval)))
+			for i in range(1, len(seq)):
+				seq[i] = seq[i-1] + seq[i]
+			if len(yi) > 200:
+				entropy_seq_list.append(yi)
+			#plt.plot(xi, yi)
+			#plt.plot(x, z)
+			#plt.plot(x, seq)
+		#plt.plot(range(1000), range(1000), 'k--')
+		#plt.show()
+		mean_entropy = []
+		for i in range(200):
+			val = np.mean([s[i] for s in entropy_seq_list])
+			mean_entropy.append(val)
+		plt.plot(range(200), mean_entropy)
+	plt.ylabel("Entropy")
+	plt.xlabel("Games Played")
+	plt.title("Character Entropy for 200 Games")
+	plt.show()
+	
+	
+	for i in range(7):
+		users = [u for u in user_list if u.tier == i]
+		print("tier", i, len(users))
+		entropy_seq_list = []
+		for u in users:
+			x, y, z, seq, xi, yi, zi = [], [], [], [], [], [], []
+			picks = {}
+			for key in u.role_freq:
+				picks[key] = 0
+			interval = 1000
+			for i in range(u.games_played):
+				role = u.ranked_matches[i]['lane'] + u.ranked_matches[i]['role']
+				picks[role] += 1
+				x.append(i)
+				y.append(entropy(list(picks.values())))
+				z.append(picks[u.most_role_id]/(i+1))
+				seq.append(1 if u.most_role_id == role else 0)
+				#if i < interval:
+				#	continue
+				games_in_interval = u.ranked_matches[max(0, i-interval):i]
+				picks_interval = {}
+				for key in u.role_freq:
+					picks_interval[key] = 0
+				for j in range(len(games_in_interval)):
+					picks_interval[games_in_interval[j]['lane']+games_in_interval[j]['role']] += 1
+				xi.append(i)
+				yi.append(entropy(list(picks_interval.values())))
+				#zi.append(picks_interval[u.most_role_id]/(len(games_in_interval)))
+			for i in range(1, len(seq)):
+				seq[i] = seq[i-1] + seq[i]
+			if len(yi) > 200:
+				entropy_seq_list.append(yi)
+			#plt.plot(x, z)
+			#plt.plot(x, seq)
+			#plt.plot(xi, zi)
+		#plt.plot(range(1000), range(1000), 'k--')
+		#plt.show()
+		mean_entropy = []
+		for i in range(200):
+			val = np.mean([s[i] for s in entropy_seq_list])
+			mean_entropy.append(val)
+		plt.plot(range(200), mean_entropy)
+	plt.ylabel("Entropy")
+	plt.xlabel("Games Played")
+	plt.title("Role Entropy for 200 Games")
+	plt.show()
+	#todo: winrate of one specific champion
+	#todo: most recently most played champion?
+	#todo: per user, championwise cumulative diagram?
+	
+
+
 	tiers = [{} for i in range(7)]
 	for t in range(len(tiers)):
 		users = [u for u in user_list if u.tier == t]
@@ -414,7 +555,7 @@ def entropy_tier():
 		tiers[t]['Sc_mean'] = np.mean([u.champ_entropy for u in users])
 		tiers[t]['Sr_mean'] = np.mean([u.role_entropy for u in users])
 		tiers[t]['Fc_most_means'] = []
-		for i in range(30):
+		for i in range(10):
 			l = []
 			for u in users:
 				if i < len(u.champ_most_freq):
@@ -461,6 +602,7 @@ def entropy_tier():
 			stat, pval = ttest_ind(Fr_most_1, Fr_most_2, equal_var = False)
 			print ("tiers", i, j, stat, pval)
 
+	#champ_most_freq vs games played
 	for i in range(7):
 		x = [u.games_played for u in user_list if u.tier == i]
 		y = [u.champ_most_freq[0]/u.games_played for u in user_list if u.tier == i]
@@ -479,13 +621,22 @@ def entropy_tier():
 		binned_avg(x, y, 10)
 		plt.ylim((0,1))
 		plt.show()
-
+	
+	
+	for i in range(7):
+		users = [u.games_played for u in user_list if u.tier == i]
+		print("tier", i, np.mean(users), np.std(users))
+	[[u.games_played for u in user_list if u.tier == i] for i in range(7)]
 	plt.boxplot([[u.games_played for u in user_list if u.tier == i] for i in range(7)])
 	plt.ylim((0,5000))
 	plt.show()
 	plt.boxplot([[u.champ_entropy for u in user_list if u.tier == i] for i in range(7)])
+	plt.ylabel("Entropy")
+	plt.title("Final Character Entropy")
 	plt.show()
 	plt.boxplot([[u.role_entropy for u in user_list if u.tier == i] for i in range(7)])
+	plt.ylabel("Entropy")
+	plt.title("Final Role Entropy")
 	plt.show()
 	
 
