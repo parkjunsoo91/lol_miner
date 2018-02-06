@@ -7,6 +7,82 @@ import sqlite3
 from riot_api import *
 
 
+def main():
+	global api
+	api = RiotAPICaller(API_KEY)
+	print("1 - ")
+	print("2 - collect matches")
+	print("3 - check missing matches")
+	print("4 - check_db")
+	print("5 - check_matchlist queues")
+	print("6 - check match queues")
+	print("7 - check timestamp")
+	print("8 - update static data")
+	print("9 - add winloss info")
+	print("10 - add kda info")
+	
+	num = input("enter command: ")
+	if num == '1':
+		pass
+	elif num == '2':
+		collect_matchinfo()
+	elif num == '3':
+		check_missing_matches()
+	elif num == '4':
+		check_table_matches()
+	elif num == '5':
+		check_matchlist_queues()
+	elif num == '6':
+		check_match_queues()
+	elif num == '7':
+		check_timestamp()
+	elif num == '8':
+		update_static_data()
+	elif num == '9':
+		add_winloss_info()
+	elif num == '10':
+		add_kda_info()
+	return
+	
+	create_matchlist_table()
+	add_winloss_info()
+	return
+
+	#collect_all_players_history(TIER)
+	#return
+	#create_user_table()
+	#create_match_table()
+	collect_league(SEED)
+	return
+	seeds = [SEED]
+	while True:
+		seed = seeds.pop(0)
+		new_seeds = collect_league(seed)
+		seeds = seeds + new_seeds
+
+api = None
+counter = 0
+BRONZE = 0
+SILVER = 2833703
+GOLD = 4023441
+PLATINUM = 1647596
+DIAMOND = 2109280
+MASTER = 1229790
+CHALLENGER = 1222794
+SEASON_ID = 8
+QUEUE_ID = 420
+
+NA1 = "RGAPI-e25c265e-685b-4fbc-8350-6245d0a04237" #silver & Bronze
+NA2 = "RGAPI-a313e30a-99f7-4917-8a0f-9e953ca2611b" #gold
+KR1 = "RGAPI-3b09835e-2116-41b2-aa7e-2ecdf4f9033f" #challenger
+KR2 = "RGAPI-e7174d16-1448-41d0-ab19-659f5a561bfe" #master & PLAT
+KR3 = "RGAPI-7bd52325-6d2f-4d77-b420-bd28099188cc" #diamond
+
+API_KEY = NA1
+TIER = "SILVER"
+SEED = CHALLENGER
+
+
 def create_user_table():
 	connection = sqlite3.connect('loldata2.db')
 	cur = connection.cursor()
@@ -505,78 +581,5 @@ def update_static_data():
 		with open('items.json', 'w') as f:
 			json.dump(item_list_dto, f)
 
-def main():
-	global api
-	api = RiotAPICaller(API_KEY)
-	print("1 - ")
-	print("2 - collect matches")
-	print("3 - check missing matches")
-	print("4 - check_db")
-	print("5 - check_matchlist queues")
-	print("6 - check match queues")
-	print("7 - check timestamp")
-	print("8 - update static data")
-	print("9 - add winloss info")
-	print("10 - add kda info")
-	num = input("enter command: ")
-	if num == '1':
-		pass
-	elif num == '2':
-		collect_matchinfo()
-	elif num == '3':
-		check_missing_matches()
-	elif num == '4':
-		check_table_matches()
-	elif num == '5':
-		check_matchlist_queues()
-	elif num == '6':
-		check_match_queues()
-	elif num == '7':
-		check_timestamp()
-	elif num == '8':
-		update_static_data()
-	elif num == '9':
-		add_winloss_info()
-	elif num == '10':
-		add_kda_info()
-	return
-	
-	create_matchlist_table()
-	add_winloss_info()
-	return
-
-	#collect_all_players_history(TIER)
-	#return
-	#create_user_table()
-	#create_match_table()
-	collect_league(SEED)
-	return
-	seeds = [SEED]
-	while True:
-		seed = seeds.pop(0)
-		new_seeds = collect_league(seed)
-		seeds = seeds + new_seeds
-
-api = None
-counter = 0
-BRONZE = 0
-SILVER = 2833703
-GOLD = 4023441
-PLATINUM = 1647596
-DIAMOND = 2109280
-MASTER = 1229790
-CHALLENGER = 1222794
-SEASON_ID = 8
-QUEUE_ID = 420
-
-NA1 = "RGAPI-e25c265e-685b-4fbc-8350-6245d0a04237" #silver & Bronze
-NA2 = "RGAPI-a313e30a-99f7-4917-8a0f-9e953ca2611b" #gold
-KR1 = "RGAPI-3b09835e-2116-41b2-aa7e-2ecdf4f9033f" #challenger
-KR2 = "RGAPI-e7174d16-1448-41d0-ab19-659f5a561bfe" #master & PLAT
-KR3 = "RGAPI-7bd52325-6d2f-4d77-b420-bd28099188cc" #diamond
-
-API_KEY = NA1
-TIER = "SILVER"
-SEED = CHALLENGER
 
 main()
