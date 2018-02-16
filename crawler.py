@@ -83,6 +83,56 @@ TIER = "SILVER"
 SEED = CHALLENGER
 
 
+'''
+require key and tier input
+'''
+def collect_matchinfo():
+	tier = input("tier?:")
+	key = input("key number?:")
+	global API_KEY
+	global TIER
+	
+	TIER = tier
+	if key == '1':
+		API_KEY = NA1
+	if key == '2':
+		API_KEY = NA2
+	if key == '3':
+		API_KEY = KR1
+	if key == '4':
+		API_KEY = KR2
+	if key == '5':
+		API_KEY = KR3
+	global api
+	api = RiotAPICaller(API_KEY)
+
+	connection = sqlite3.connect('loldata2.db')
+	cur = connection.cursor()
+	#cur.execute('SELECT * FROM matchlist')
+	cur.execute("""SELECT matchlist.aid, users.tier, matchlist.matchlist 
+		FROM matchlist INNER JOIN users ON matchlist.aid = users.aid""")
+	rows = cur.fetchall()
+	for row in rows:
+		tier = row[1]
+		if tier == TIER:
+			matchlist_dto = json.loads(row[2])
+			for match_reference_dto in matchlist_dto['matches']:
+				queue = match_reference_dto['queue']
+				season = match_reference_dto['season']
+				game_id = match_reference_dto['gameId']
+				timestamp = match_reference_dto['timestamp']//1000
+				#recording only ranked games for now
+				if (queue == 4 or queue == 42 or queue == 410 or
+					queue == 420 or queue == 440) and season == 9:
+					cur.execute('SELECT count(*) FROM matches WHERE gameId=?',(game_id,))
+					if cur.fetchone()[0] == 0:
+						match_dto = api.get_match(game_id)
+						if match_dto == None or match_dto == 404:
+							print("404 for season{}, queue{}, {}, {}".format(season, queue, str(date.fromtimestamp(timestamp)), timestamp))
+							continue
+						record_match(match_dto)
+
+
 def create_user_table():
 	connection = sqlite3.connect('loldata2.db')
 	cur = connection.cursor()
@@ -427,50 +477,7 @@ def collect_user_list():
 	pass
 def collect_matchlists():
 	pass
-def collect_matchinfo():
-	tier = input("tier?:")
-	key = input("key number?:")
-	global API_KEY
-	global TIER
-	TIER = tier
-	if key == '1':
-		API_KEY = NA1
-	if key == '2':
-		API_KEY = NA2
-	if key == '3':
-		API_KEY = KR1
-	if key == '4':
-		API_KEY = KR2
-	if key == '5':
-		API_KEY = KR3
-	global api
-	api = RiotAPICaller(API_KEY)
 
-	connection = sqlite3.connect('loldata2.db')
-	cur = connection.cursor()
-	#cur.execute('SELECT * FROM matchlist')
-	cur.execute("""SELECT matchlist.aid, users.tier, matchlist.matchlist 
-		FROM matchlist INNER JOIN users ON matchlist.aid = users.aid""")
-	rows = cur.fetchall()
-	for row in rows:
-		tier = row[1]
-		if tier == TIER:
-			matchlist_dto = json.loads(row[2])
-			for match_reference_dto in matchlist_dto['matches']:
-				queue = match_reference_dto['queue']
-				season = match_reference_dto['season']
-				game_id = match_reference_dto['gameId']
-				timestamp = match_reference_dto['timestamp']//1000
-				#recording only ranked games for now
-				if (queue == 4 or queue == 42 or queue == 410 or
-					queue == 420 or queue == 440):
-					cur.execute('SELECT count(*) FROM matches WHERE gameId=?',(game_id,))
-					if cur.fetchone()[0] == 0:
-						match_dto = api.get_match(game_id)
-						if match_dto == None or match_dto == 404:
-							print("404 for season{}, queue{}, {}, {}".format(season, queue, str(date.fromtimestamp(timestamp)), timestamp))
-							continue
-						record_match(match_dto)
 
 def add_winloss_kda():
 	pass
