@@ -45,9 +45,15 @@ class DataManager:
 		self.collect_league(league_id)
 		#as a side effect, a queue is filled up with potential next seed candidates
 		self.collect_recursively()
-
+	'''
+	parameter: league id (int)
+	collect season 9 match info for everyone in the league.
+	fill up queue with next seed summoner ids
+	'''
 	def collect_league(league_id):
-		league_list_dto = api.get_league(league_id)
+		status, league_list_dto = api.get_league(league_id)
+		if status != 200:
+			return
 
 		#save everyone in the league in a queue
 		sid_queue = [e['playerOrTeamId'] for e in league_list_dto['entries']]
@@ -56,46 +62,87 @@ class DataManager:
 		while len(sid_queue) > 0:
 			sid = sid_queue.pop()
 
-			summoner_dto = self.get_summoner(sid, save=True)
-
+			success, summoner_dto = self.get_summoner(sid, save=True)
+			if success == False:
+				continue
 			aid = summoner_dto['accountId']
-			matchlist_dto = api.get_matchlist(aid, season=9, save=True) #season7
-			self.record_matchlist(aid, matchlist_dto['matches'])
-
+			success, matchlist_dto = self.get_matchlist(aid, season=9, save=True) #season7
+			if success == False:
+				continue
+		
 			for match_reference_dto in matchlist_dto['matches']:
 				game_id = match_reference_dto['gameId']
-				match_dto = self.record_match(game_id)
+				match_dto = self.get_match(game_id, save=True)
 				if len(sid_queue) < 20:
-					sid.queue += participant_sid(match_dto)
+					for p_id_dto in match_dto['participantIdentities']:
+						sid.queue.append(p_id_dto['player']['summonerId'])
 
-	'''get from db, else get from api, then save in db'''
+	'''
+	get from db, else get from api.
+	if save=True, then save in db
+	parameters: summoner id(int), save(bool)
+	return success(bool), data(dict)
+	'''
 	def get_summoner(sid, save=False):
 		connection = sqlite3.connect(self.region + '.db')
 		cur = connection.cursor()
 		cur.execute("SELECT * FROM summoners WHERE sid = ?", (sid,))
 		rows = cur.fetchall()
 		if len(rows) != 0:
-			return {'accountId': rows[0][0], 'id': rows[0][1]} 
+			return True, {'accountId': rows[0][0], 'id': rows[0][1]} 
 		else:
-			summoner_dto = api.get_summoner_by_summoner_id(sid)
+			status, summoner_dto = api.get_summoner_by_summoner_id(sid)
+			if status != 200:
+				return False, summoner_dto
 			if save == True:
 				self.record_summoner(summoner_dto)
-			return summoner_dto
-
+			return True, summoner_dto
+	'''	
+	get from db, else get from api.
+	if save=True, then save in db
+	if season=0, collect all seasons.
+	parameters: summoner id(int), save(bool)
+	return success(bool), data(dict)
+	'''
 	def get_matchlist(aid, season=0, save=False):
 		connection = sqlite3.connect(self.region + '.db')
 		cur = connection.cursor()
 		cur.execute("SELECT * FROM matchlists WHERE aid = ?", (aid,))
 		rows = cur.fetchall()
 		if len(rows) != 0:
-			return json.loads(rows[0][1])
+			return True, json.loads(rows[0][1])
 		else:
-			matchlist_dto = api.get_matchlist(aid, season_id=season)
+			status, matchlist_dto = api.get_matchlist(aid, season_id=season)
+			if status != 200:
+				return False, matchlist_dto
 			if save == True:
-				self.record_summoner(summoner_dto)
-			return summoner_dto
+				self.record_matchlist(aid, matchlist_dto)
+			return True, matchlist_dto
 
+	'''
+	get from db, else get from api.
+	if save=True, then save in db
+	parameters: game id(int), save(bool)
+	return success(bool), data(dict)
+	'''
+	def get_match(game_id, save=False):
+		connection = sqlite3.connect(self.region + '.db')
+		cur = connection.cursor()
+		cur.execute("SELECT * FROM matches WHERE gameId = ?", (game_id,))
+		rows = cur.fetchall()
+		if len(rows) != 0:
+			return True, json.loads(rows[0][4])
+		else:
+			status, match_dto = api.get_match(aid, game_id)
+			if status != 200:
+				return False, match_dto
+			if save == True:
+				self.record_matchlist(aid, matchlist_dto)
+			return True, matchlist_dto
 
+	'''
+	record functions - record data objects into sql tables
+	'''
 	def record_summoner(self, summoner_dto):
 		aid = summoner_dto['accountId']
 		sid = summoner_dto['id']
@@ -108,11 +155,31 @@ class DataManager:
 					(aid, sid, tier, rank))
 		connection.commit()
 
-	def record_matchlist(self, listof_match_reference_dto):
-		pass
-
-	def record_match(self, match_id):
-		#check if this exists, if not call api
+	'''
+	record functions - record data objects into sql tables
+	data format: {'totalGames':int, 'matches'[...]}
+	TODO: if entry exists, add unexisting ones into the original.
+	'''
+	def record_matchlist(self, aid, matchlist_dto):
+		connection = sqlite3.connect(self.region + '.db')
+		cur = connection.cursor()
+		cur.execute("INSERT OR IGNORE INTO summoners VALUES (?,?)",
+					(aid, json.dumps(matchlist_dto),))
+		connection.commit()
+	
+	'''
+	record functions - record data objects into sql tables
+	'''		
+	def record_match(self, match_dto):
+		connection = sqlite3.connect(self.region + '.db')
+		cur = connection.cursor()
+		cur.execute("INSERT OR IGNORE INTO matches VALUES (?,?,?,?,?)",
+					(match_dto['gameId'],
+					match_dto['seasonId'],
+					match_dto['queueId'],
+					match_dto['gameVersion'],
+					json.dumps(match_dto),))
+		connection.commit()
 		pass
 
 	def create_table_summoners(self):

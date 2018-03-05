@@ -37,20 +37,24 @@ class RiotAPICaller:
 		request_body = "/lol/match/v3/matchlists/by-account/{}".format(account_id)
 		if season_id != None:
 			request_body = "{}?season={}".format(request_body, season_id)
-		matchlist_dto = self.send_request(request_body)
+		status, matchlist_dto = self.send_request(request_body)
+		if status != 200:
+			return status, {}
 		matches = matchlist_dto['matches']
 		total_games = matchlist_dto['totalGames']
 		end_index = matchlist_dto['endIndex']
 		print ("len(matches) = {}, total_games = {}".format(len(matches), total_games))
 		while end_index < total_games:
 			next_request_body = "{}?beginIndex={}".format(request_body, end_index)
-			matchlist_dto = self.send_request(next_request_body)
+			status, matchlist_dto = self.send_request(next_request_body)
+			if status != 200:
+				return status, {}
 			matches += matchlist_dto['matches']
 			total_games = matchlist_dto['totalGames']
 			end_index = matchlist_dto['endIndex']
 			print ("len(matches) = {}, total_games = {}".format(len(matches), total_games))
 		assert len(matches) == total_games
-		return {'totalGames': total_games, 'matches': matches}
+		return status, {'totalGames': total_games, 'matches': matches}
 
 	def get_match(self, game_id):
 		request_body = "/lol/match/v3/matches/{}".format(game_id)
@@ -64,7 +68,11 @@ class RiotAPICaller:
 		request_body = "/lol/static-data/v3/items?locale=en_US&tags=all"
 		return self.send_request(request_body)
 
-		
+	'''
+	send request and receive response. Repeat until getting correct response.
+	argument: request body
+	returns: response status, response bodymd
+	'''
 	def send_request(self, request_body):
 		time.sleep(1.2)
 		print(request_body)
@@ -80,9 +88,9 @@ class RiotAPICaller:
 					b = response.read()
 					dataObject = json.loads(b)
 					connection.close()
-					return dataObject
+					return response.status, dataObject
 				elif response.status == 404:
-					return 404
+					return response.status, {}
 			except http.client.HTTPException as e:
 				#does this part ever run?
 				print(e)
@@ -92,4 +100,4 @@ class RiotAPICaller:
 			time.sleep(1.2)
 
 			print("retrying...")
-		return response.status
+		return response.status, {}
