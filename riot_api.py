@@ -5,9 +5,15 @@ import datetime
 
 
 class RiotAPICaller:
-	def __init__(self, api_key):
+	def __init__(self, api_key, region = "KR"):
 		self.KEY = api_key
-		self.URL = "kr.api.riotgames.com"
+		if region == "NA":
+			self.URL = "na.api.riotgames.com"
+		if region == "EU":
+			self.URL = "eu.api.riotgames.com"
+		if region == "KR"
+			self.URL = "kr.api.riotgames.com"
+		
 		self.counter = 0
 
 	def get_summoner_by_account_id(self, account_id):
@@ -18,8 +24,12 @@ class RiotAPICaller:
 		request_body = "/lol/summoner/v3/summoners/{}".format(summoner_id)
 		return self.send_request(request_body)
 
-	def get_league(self, summoner_id):
-		request_body = "/lol/league/v3/leagues/by-summoner/{}".format(summoner_id)
+	def get_positon(self, summoner_id):
+		request_body = "/lol/league/v3/positions/by-summoner/{}".format(summoner_id)
+		return self.send_request(request_body)
+
+	def get_league(self, league_id):
+		request_body = "/lol/league/v3/leagues/{}".format(summoner_id)
 		return self.send_request(request_body)
 
 	def get_matchlist(self, account_id, season_id = None):
