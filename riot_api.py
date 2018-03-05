@@ -11,7 +11,7 @@ class RiotAPICaller:
 			self.URL = "na.api.riotgames.com"
 		if region == "EU":
 			self.URL = "eu.api.riotgames.com"
-		if region == "KR"
+		if region == "KR":
 			self.URL = "kr.api.riotgames.com"
 		
 		self.counter = 0
@@ -24,16 +24,16 @@ class RiotAPICaller:
 		request_body = "/lol/summoner/v3/summoners/{}".format(summoner_id)
 		return self.send_request(request_body)
 
-	def get_positon(self, summoner_id):
+	def get_position(self, summoner_id):
 		request_body = "/lol/league/v3/positions/by-summoner/{}".format(summoner_id)
 		return self.send_request(request_body)
 
 	def get_league(self, league_id):
-		request_body = "/lol/league/v3/leagues/{}".format(summoner_id)
+		request_body = "/lol/league/v3/leagues/{}".format(league_id)
 		return self.send_request(request_body)
 
 	def get_matchlist(self, account_id, season_id = None):
-		assert (season_id == None) or (0 <= season_id and season_id <= 9)
+		assert (season_id == None) or (0 <= season_id and season_id <= 11)
 		request_body = "/lol/match/v3/matchlists/by-account/{}".format(account_id)
 		if season_id != None:
 			request_body = "{}?season={}".format(request_body, season_id)
@@ -44,7 +44,7 @@ class RiotAPICaller:
 		total_games = matchlist_dto['totalGames']
 		end_index = matchlist_dto['endIndex']
 		print ("len(matches) = {}, total_games = {}".format(len(matches), total_games))
-		while end_index < total_games:
+		while season_id == None and end_index < total_games:
 			next_request_body = "{}?beginIndex={}".format(request_body, end_index)
 			status, matchlist_dto = self.send_request(next_request_body)
 			if status != 200:
@@ -53,7 +53,8 @@ class RiotAPICaller:
 			total_games = matchlist_dto['totalGames']
 			end_index = matchlist_dto['endIndex']
 			print ("len(matches) = {}, total_games = {}".format(len(matches), total_games))
-		assert len(matches) == total_games
+		if season_id == None:
+			assert len(matches) == total_games
 		return status, {'totalGames': total_games, 'matches': matches}
 
 	def get_match(self, game_id):
