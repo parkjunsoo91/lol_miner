@@ -2,15 +2,15 @@ import http.client
 import json
 import time
 import datetime
-
+import sys
 
 class RiotAPICaller:
 	def __init__(self, api_key, region = "KR"):
 		self.KEY = api_key
-		if region == "NA":
-			self.URL = "na.api.riotgames.com"
-		if region == "EU":
-			self.URL = "eu.api.riotgames.com"
+		if region == "NA1":
+			self.URL = "na1.api.riotgames.com"
+		if region == "EUW":
+			self.URL = "euw1.api.riotgames.com"
 		if region == "KR":
 			self.URL = "kr.api.riotgames.com"
 		
@@ -35,16 +35,17 @@ class RiotAPICaller:
 	def get_matchlist(self, account_id, season_id = None):
 		assert (season_id == None) or (0 <= season_id and season_id <= 11)
 		request_body = "/lol/match/v3/matchlists/by-account/{}".format(account_id)
-		if season_id != None:
-			request_body = "{}?season={}".format(request_body, season_id)
+		#if season_id != None:
+		#	request_body = "{}?season={}".format(request_body, season_id)
 		status, matchlist_dto = self.send_request(request_body)
 		if status != 200:
 			return status, {}
 		matches = matchlist_dto['matches']
 		total_games = matchlist_dto['totalGames']
+		start_index = matchlist_dto['startIndex']
 		end_index = matchlist_dto['endIndex']
 		print ("len(matches) = {}, total_games = {}".format(len(matches), total_games))
-		while season_id == None and end_index < total_games:
+		while end_index < total_games:
 			next_request_body = "{}?beginIndex={}".format(request_body, end_index)
 			status, matchlist_dto = self.send_request(next_request_body)
 			if status != 200:
@@ -53,8 +54,8 @@ class RiotAPICaller:
 			total_games = matchlist_dto['totalGames']
 			end_index = matchlist_dto['endIndex']
 			print ("len(matches) = {}, total_games = {}".format(len(matches), total_games))
-		if season_id == None:
-			assert len(matches) == total_games
+		#if season_id == None:
+		assert len(matches) == total_games
 		return status, {'totalGames': total_games, 'matches': matches}
 
 	def get_match(self, game_id):
@@ -98,6 +99,10 @@ class RiotAPICaller:
 				if response != None:
 					print(response.status, response.reason)
 				connection.close()
+			except:
+				print("Unexpected error:", sys.exc_info()[0])
+				connection.close()
+				time.sleep(3.0)
 			time.sleep(1.2)
 
 			print("retrying...")

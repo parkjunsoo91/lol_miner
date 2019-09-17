@@ -106,3 +106,5 @@ ENV/
 *.db-journal
 writing.docx
 *.docx
+*.exe
+*.xlsx
